@@ -1,16 +1,17 @@
-# Swordle Mobile App
+# Swordle Backend
 
-React Native mobile application for Swordle game.
+Node.js/Express API server for Swordle game.
 
 ## Status: ⚠️ STRUCTURE ONLY - NEEDS IMPLEMENTATION
 
-This folder has the configuration, but the actual React Native components need to be written.
+This folder has the configuration and structure, but the actual TypeScript code needs to be written.
 
 ## What's Included
 
 - ✅ `package.json` - All dependencies listed
+- ✅ `.env.example` - Environment variable template
+- ✅ `database/schema.sql` - Complete database schema (copy/paste ready!)
 - ❌ `src/` folder - **YOU NEED TO WRITE THE CODE**
-- ❌ `App.tsx` - **YOU NEED TO WRITE THIS**
 
 ## Quick Start
 
@@ -18,175 +19,132 @@ This folder has the configuration, but the actual React Native components need t
 # Install dependencies
 npm install
 
-# Start Expo (will fail until you write code)
-npm start
+# Set up environment
+cp .env.example .env
+# Edit .env with your settings
 
-# Then press:
-# i - iOS simulator
-# a - Android emulator
-# w - Web browser
+# Create database
+createdb swordle_dev
+psql swordle_dev < database/schema.sql
+
+# Start server (will fail until you write the code)
+npm run dev
 ```
 
 ## What You Need to Code
 
-### Priority 1 (Core Screens)
+### Priority 1 (Core API)
 
-1. **`App.tsx`** - Main app entry point
-   - Set up navigation
-   - Set up global state
-   - Add providers
+1. **`src/index.ts`** - Main server file
+   - Set up Express
+   - Connect to database
+   - Add routes
+   - Start server
 
-2. **`src/screens/HomeScreen.tsx`** - Main menu
-   - List available games
-   - "Create Game" button
-   - "My Games" section
+2. **`src/config/database.ts`** - Database connection
+   - Create PostgreSQL pool
+   - Export query function
 
-3. **`src/screens/GameScreen.tsx`** - Playing a game
-   - Show game board
-   - Display player stats
-   - Move selector
-   - Submit button
+3. **`src/controllers/gameController.ts`** - Game endpoints
+   - createGame
+   - listGames
+   - getGame
+   - joinGame
+   - startGame
 
-### Priority 2 (UI Components)
+4. **`src/controllers/moveController.ts`** - Move endpoints
+   - submitMove
+   - getCurrentMove
+   - getRevealedMoves
 
-4. **`src/components/GameBoard.tsx`** - Map grid
-   - Render 8x8 grid
-   - Show landmarks
-   - Highlight current position
+### Priority 2 (Game Logic)
 
-5. **`src/components/TileCell.tsx`** - Individual tile
-   - Show tile type (forest, mountain, empty)
-   - Show fighter if present
-   - Handle tap
+5. **`src/services/mapGenerator.ts`** - Generate maps
+   - Create 8x8 grid
+   - Place landmarks
+   - Return tile array
 
-6. **`src/components/MoveSelector.tsx`** - Choose move
-   - Select destination
-   - Pick action (attack, defend, etc.)
-   - Validation
+6. **`src/services/combatResolver.ts`** - Combat logic
+   - Compare weapon tiers
+   - Determine winner
+   - Return result
 
-7. **`src/components/PlayerStats.tsx`** - Resource display
-   - Wood count
-   - Metal count
-   - Weapon tier
-
-### Priority 3 (Services)
-
-8. **`src/services/api.ts`** - API client
-   - All API calls
-   - Error handling
-
-9. **`src/hooks/useGame.ts`** - Game state management
-   - Fetch game data
+7. **`src/services/gameEngine.ts`** - Process moves
+   - Collect all moves for day
+   - Resolve conflicts
    - Update game state
-   - WebSocket connection
+   - Return events
+
+### Priority 3 (Helpers & Tests)
+
+8. **`src/routes/`** - Express routes
+9. **`src/utils/validators.ts`** - Input validation
+10. **`tests/`** - API tests
 
 ## Example Code to Get Started
 
-### App.tsx (Minimal Example)
+### src/index.ts (Minimal Example)
 
 ```typescript
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
 
-export default function App() {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Swordle</Text>
-      <Text>Game goes here!</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
-}
+dotenv.config();
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 20,
-  },
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
 ```
 
-### src/services/api.ts (Minimal Example)
+### src/config/database.ts (Minimal Example)
 
 ```typescript
-import axios from 'axios';
+import { Pool } from 'pg';
 
-const API_URL = 'http://localhost:3000/api';
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-export const api = {
-  getGames: async () => {
-    const response = await axios.get(`${API_URL}/games`);
-    return response.data;
-  },
-  
-  createGame: async (maxPlayers: number) => {
-    const response = await axios.post(`${API_URL}/games`, {
-      maxPlayers,
-      mapShape: 'rectangle',
-    });
-    return response.data;
-  },
+export const query = (text: string, params?: any[]) => {
+  return pool.query(text, params);
 };
 ```
 
 ## Testing
 
 ```bash
-# Start the app
-npm start
+# Run tests (after you write them)
+npm test
 
-# On iOS
-npm run ios
-
-# On Android
-npm run android
-
-# On Web (for quick testing)
-npm run web
+# Manual API testing
+curl http://localhost:3000/health
 ```
 
 ## Architecture
 
-See `../docs/` for full mobile architecture documentation.
+See `../docs/` for full architecture documentation.
 
 ## Learning Resources
 
-- [React Native Docs](https://reactnative.dev/docs/getting-started)
-- [Expo Docs](https://docs.expo.dev/)
-- [React Navigation](https://reactnavigation.org/docs/getting-started)
-
-## Common Issues
-
-**"Unable to resolve module"**
-```bash
-# Clear cache and reinstall
-rm -rf node_modules package-lock.json
-npm install
-npm start --reset-cache
-```
-
-**"iOS build failed"**
-- Make sure Xcode is installed
-- Accept Xcode license: `sudo xcodebuild -license accept`
-
-**"Android emulator not found"**
-- Open Android Studio
-- Tools → AVD Manager
-- Create a virtual device
+- [Express.js Guide](https://expressjs.com/en/guide/routing.html)
+- [PostgreSQL Node.js](https://node-postgres.com/)
+- [TypeScript Handbook](https://www.typescriptlang.org/docs/)
 
 ## Next Steps
 
-1. Read the full mobile architecture from our conversation
-2. Start with `App.tsx` - get something showing on screen
-3. Build one screen at a time
-4. Connect to backend API
-5. Add game logic
-6. Polish UI
+1. Read the full backend architecture from our conversation
+2. Start with `src/index.ts` and `src/config/database.ts`
+3. Build one endpoint at a time
+4. Test each endpoint before moving on
+5. Gradually add game logic
