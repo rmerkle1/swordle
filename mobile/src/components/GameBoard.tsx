@@ -8,6 +8,7 @@ interface Props {
   foggedTiles: FoggedTile[];
   boardSize: number;
   selectedTile: number | null;
+  lockedTile: number | null;
   validTargets: Set<number>;
   onTilePress: (tileIndex: number) => void;
 }
@@ -16,7 +17,7 @@ const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 2.5;
 const ZOOM_STEP = 0.3;
 
-export default function GameBoard({ foggedTiles, boardSize, selectedTile, validTargets, onTilePress }: Props) {
+export default function GameBoard({ foggedTiles, boardSize, selectedTile, lockedTile, validTargets, onTilePress }: Props) {
   const { width } = useWindowDimensions();
   const [zoom, setZoom] = useState(1);
 
@@ -55,6 +56,7 @@ export default function GameBoard({ foggedTiles, boardSize, selectedTile, validT
                 foggedTile={ft}
                 size={tileSize}
                 isSelected={selectedTile === ft.index}
+                isLocked={lockedTile === ft.index}
                 isValidTarget={validTargets.has(ft.index)}
                 onPress={onTilePress}
               />

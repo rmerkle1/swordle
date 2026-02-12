@@ -9,6 +9,7 @@ interface Props {
   foggedTile: FoggedTile;
   size: number;
   isSelected: boolean;
+  isLocked: boolean;
   isValidTarget: boolean;
   onPress: (tileIndex: number) => void;
 }
@@ -27,7 +28,7 @@ function blendColor(hex: string, overlay: string, opacity: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
-export default function TileCell({ foggedTile, size, isSelected, isValidTarget, onPress }: Props) {
+export default function TileCell({ foggedTile, size, isSelected, isLocked, isValidTarget, onPress }: Props) {
   const { visibility, displayType, displayEmoji, displayPlayer } = foggedTile;
 
   // Hidden tiles render as void
@@ -58,6 +59,7 @@ export default function TileCell({ foggedTile, size, isSelected, isValidTarget, 
           backgroundColor,
         },
         isSelected && styles.selected,
+        isLocked && styles.locked,
         isValidTarget && styles.validTarget,
       ]}
     >
@@ -108,6 +110,10 @@ const styles = StyleSheet.create({
   selected: {
     borderWidth: 2,
     borderColor: COLORS.gold,
+  },
+  locked: {
+    borderWidth: 2,
+    borderColor: COLORS.success,
   },
   validTarget: {
     backgroundColor: 'rgba(240,192,64,0.25)',

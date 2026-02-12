@@ -10,6 +10,7 @@ interface Props {
   buildOption: BuildOption | null;
   isSubmitting: boolean;
   isStunned: boolean;
+  isLocked?: boolean;
   targetTileType: TileType;
   player: GamePlayer;
   onSelectAction: (action: ActionType) => void;
@@ -28,6 +29,7 @@ const BUILD_OPTIONS: BuildOption[] = ['wall', 'trap', 'upgrade'];
 
 export default function MoveSelector({
   selectedAction, buildOption, isSubmitting, isStunned,
+  isLocked = false,
   targetTileType, player,
   onSelectAction, onSelectBuild, onSubmit, onCancel,
 }: Props) {
@@ -51,10 +53,12 @@ export default function MoveSelector({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Choose Action</Text>
-        <TouchableOpacity onPress={onCancel}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
+        <Text style={styles.title}>{isLocked ? '\u{1F512} Move Locked In' : 'Choose Action'}</Text>
+        {!isLocked && (
+          <TouchableOpacity onPress={onCancel}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+        )}
       </View>
       {isStunned && (
         <View style={styles.stunnedBanner}>
@@ -63,7 +67,7 @@ export default function MoveSelector({
       )}
       <View style={styles.actions}>
         {ACTIONS.map((action) => {
-          const disabled = isStunned;
+          const disabled = isStunned || isLocked;
           return (
             <TouchableOpacity
               key={action}
@@ -101,9 +105,9 @@ export default function MoveSelector({
                 style={[
                   styles.buildBtn,
                   buildOption === option && styles.buildSelected,
-                  !enabled && styles.buildDisabled,
+                  (!enabled || isLocked) && styles.buildDisabled,
                 ]}
-                disabled={!enabled}
+                disabled={!enabled || isLocked}
                 onPress={() => onSelectBuild(option)}
               >
                 <Text style={styles.buildEmoji}>{BUILD_EMOJI[option]}</Text>
@@ -131,17 +135,23 @@ export default function MoveSelector({
         </View>
       )}
 
-      <TouchableOpacity
-        style={[styles.submitBtn, !isSubmitReady && styles.submitDisabled]}
-        disabled={!isSubmitReady || isSubmitting}
-        onPress={onSubmit}
-      >
-        {isSubmitting ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.submitText}>Submit Move</Text>
-        )}
-      </TouchableOpacity>
+      {isLocked ? (
+        <View style={styles.lockedLabel}>
+          <Text style={styles.lockedLabelText}>{'\u2705'} Move Locked In</Text>
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={[styles.submitBtn, !isSubmitReady && styles.submitDisabled]}
+          disabled={!isSubmitReady || isSubmitting}
+          onPress={onSubmit}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.submitText}>Submit Move</Text>
+          )}
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -272,6 +282,17 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   submitText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  lockedLabel: {
+    backgroundColor: COLORS.success,
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  lockedLabelText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',

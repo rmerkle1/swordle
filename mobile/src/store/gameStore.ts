@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Game, ActionType, BuildOption, TileMemoryEntry, MapTile } from '../types';
+import { Game, ActionType, BuildOption, TileMemoryEntry, MapTile, SubmittedMove } from '../types';
 import { BOARD_SIZE } from '../constants/theme';
 
 interface GameState {
@@ -12,6 +12,7 @@ interface GameState {
   showBanner: boolean;
   tileMemory: Map<number, TileMemoryEntry>;
   myTraps: Set<number>;
+  submittedMove: SubmittedMove | null;
 
   setGames: (games: Game[]) => void;
   setCurrentGame: (game: Game | null) => void;
@@ -21,6 +22,7 @@ interface GameState {
   setSubmitting: (val: boolean) => void;
   setShowBanner: (val: boolean) => void;
   resetMove: () => void;
+  setSubmittedMove: (move: SubmittedMove | null) => void;
   updateTileMemory: (position: number, boardSize: number, tiles: MapTile[], currentDay: number) => void;
   addMyTrap: (tileIndex: number) => void;
 }
@@ -35,6 +37,7 @@ export const useGameStore = create<GameState>((set) => ({
   showBanner: false,
   tileMemory: new Map(),
   myTraps: new Set(),
+  submittedMove: null,
 
   setGames: (games) => set({ games }),
   setCurrentGame: (game) => set({
@@ -44,6 +47,7 @@ export const useGameStore = create<GameState>((set) => ({
     buildOption: null,
     tileMemory: new Map(),
     myTraps: new Set(),
+    submittedMove: null,
   }),
   selectTile: (tileIndex) => set({ selectedTile: tileIndex, pendingAction: null, buildOption: null }),
   setPendingAction: (action) => set({ pendingAction: action, buildOption: action === 'build' ? null : null }),
@@ -51,6 +55,7 @@ export const useGameStore = create<GameState>((set) => ({
   setSubmitting: (val) => set({ isSubmitting: val }),
   setShowBanner: (val) => set({ showBanner: val }),
   resetMove: () => set({ selectedTile: null, pendingAction: null, buildOption: null }),
+  setSubmittedMove: (move) => set({ submittedMove: move }),
   updateTileMemory: (position, boardSize, tiles, currentDay) =>
     set((state) => {
       const newMemory = new Map(state.tileMemory);

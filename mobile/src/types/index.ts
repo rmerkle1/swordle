@@ -4,6 +4,13 @@ export type ActionType = 'attack' | 'defend' | 'collect' | 'build' | 'scout';
 
 export type BuildOption = 'wall' | 'trap' | 'upgrade';
 
+export interface SubmittedMove {
+  toTile: number;
+  action: ActionType;
+  buildOption: BuildOption | null;
+  day: number;
+}
+
 export type GameStatus = 'lobby' | 'active' | 'completed';
 
 export interface MapTile {

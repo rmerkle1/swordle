@@ -24,6 +24,7 @@ export default function GameScreen() {
     isSubmitting, setSubmitting,
     showBanner, setShowBanner,
     resetMove,
+    submittedMove, setSubmittedMove,
     tileMemory, myTraps,
     updateTileMemory, addMyTrap,
   } = useGameStore();
@@ -47,6 +48,13 @@ export default function GameScreen() {
       currentGame.currentDay,
     );
   }, [myPlayer?.position, currentGame?.currentDay]);
+
+  // Auto-expire submitted move when day changes
+  useEffect(() => {
+    if (submittedMove && currentGame && submittedMove.day !== currentGame.currentDay) {
+      setSubmittedMove(null);
+    }
+  }, [currentGame?.currentDay, submittedMove]);
 
   // Compute fogged board
   const foggedTiles = useMemo(() => {
@@ -74,6 +82,7 @@ export default function GameScreen() {
   }, [myPlayer?.position, currentGame?.tiles, currentGame?.boardSize]);
 
   const handleTilePress = useCallback((tileIndex: number) => {
+    if (submittedMove && submittedMove.day === currentGame?.currentDay) return;
     if (selectedTile === tileIndex) {
       resetMove();
     } else if (validTargets.has(tileIndex)) {
@@ -81,7 +90,7 @@ export default function GameScreen() {
     } else {
       resetMove();
     }
-  }, [selectedTile, validTargets]);
+  }, [selectedTile, validTargets, submittedMove, currentGame?.currentDay]);
 
   const handleSubmit = useCallback(async () => {
     if (!currentGame || !myPlayer || selectedTile === null || !pendingAction) return;
@@ -97,6 +106,12 @@ export default function GameScreen() {
       fromTile: myPlayer.position,
       toTile: selectedTile,
       action: pendingAction,
+    });
+    setSubmittedMove({
+      toTile: selectedTile,
+      action: pendingAction,
+      buildOption: buildOption,
+      day: currentGame.currentDay,
     });
     setSubmitting(false);
     setShowBanner(true);
@@ -125,6 +140,7 @@ export default function GameScreen() {
           foggedTiles={foggedTiles}
           boardSize={currentGame.boardSize}
           selectedTile={selectedTile}
+          lockedTile={submittedMove?.toTile ?? null}
           validTargets={validTargets}
           onTilePress={handleTilePress}
         />
@@ -135,6 +151,21 @@ export default function GameScreen() {
             isSubmitting={isSubmitting}
             isStunned={myPlayer.isStunned}
             targetTileType={currentGame.tiles[selectedTile].type}
+            player={myPlayer}
+            onSelectAction={setPendingAction}
+            onSelectBuild={setBuildOption}
+            onSubmit={handleSubmit}
+            onCancel={resetMove}
+          />
+        )}
+        {submittedMove && selectedTile === null && (
+          <MoveSelector
+            selectedAction={submittedMove.action}
+            buildOption={submittedMove.buildOption}
+            isSubmitting={false}
+            isStunned={myPlayer.isStunned}
+            isLocked
+            targetTileType={currentGame.tiles[submittedMove.toTile]?.type ?? 'empty'}
             player={myPlayer}
             onSelectAction={setPendingAction}
             onSelectBuild={setBuildOption}
