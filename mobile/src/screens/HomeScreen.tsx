@@ -1,0 +1,97 @@
+import React, { useEffect } from 'react';
+import { View, Text, SectionList, TouchableOpacity, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList, Game } from '../types';
+import { COLORS } from '../constants/theme';
+import { useGameStore } from '../store/gameStore';
+import { api } from '../services/api';
+import GameCard from '../components/GameCard';
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+export default function HomeScreen() {
+  const navigation = useNavigation<Nav>();
+  const { games, setGames } = useGameStore();
+
+  useEffect(() => {
+    api.getGames().then(setGames);
+  }, []);
+
+  const sections = [
+    { title: 'Active Games', data: games.filter((g) => g.status === 'active') },
+    { title: 'Lobby', data: games.filter((g) => g.status === 'lobby') },
+    { title: 'Completed', data: games.filter((g) => g.status === 'completed') },
+  ].filter((s) => s.data.length > 0);
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.heading}>{'\u{2694}\uFE0F'} Swordle</Text>
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        renderSectionHeader={({ section }) => (
+          <Text style={styles.sectionTitle}>{section.title}</Text>
+        )}
+        renderItem={({ item }) => (
+          <GameCard
+            game={item}
+            onPress={() => navigation.navigate('Game', { gameId: item.id })}
+          />
+        )}
+        contentContainerStyle={styles.listContent}
+        ListEmptyComponent={<Text style={styles.empty}>No games yet</Text>}
+      />
+      <TouchableOpacity style={styles.createBtn}>
+        <Text style={styles.createTxt}>+ Create Game</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  heading: {
+    color: COLORS.text,
+    fontSize: 28,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 4,
+  },
+  listContent: {
+    paddingBottom: 80,
+  },
+  empty: {
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginTop: 40,
+  },
+  createBtn: {
+    position: 'absolute',
+    bottom: 24,
+    left: 24,
+    right: 24,
+    backgroundColor: COLORS.accent,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  createTxt: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+});
