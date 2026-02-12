@@ -5,6 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, Game } from '../types';
 import { COLORS } from '../constants/theme';
 import { useGameStore } from '../store/gameStore';
+import { usePlayerStore } from '../store/playerStore';
 import { api } from '../services/api';
 import GameCard from '../components/GameCard';
 
@@ -13,10 +14,22 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export default function HomeScreen() {
   const navigation = useNavigation<Nav>();
   const { games, setGames } = useGameStore();
+  const { playerId } = usePlayerStore();
 
   useEffect(() => {
-    api.getGames().then(setGames);
+    api.getGames().then(setGames).catch(() => {});
   }, []);
+
+  const handleCreateGame = async () => {
+    if (!playerId) return;
+    try {
+      const game = await api.createGame(4, playerId);
+      setGames([game, ...games]);
+      navigation.navigate('Game', { gameId: game.id });
+    } catch (err) {
+      console.error('Failed to create game:', err);
+    }
+  };
 
   const sections = [
     { title: 'Active Games', data: games.filter((g) => g.status === 'active') },
@@ -42,7 +55,7 @@ export default function HomeScreen() {
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={<Text style={styles.empty}>No games yet</Text>}
       />
-      <TouchableOpacity style={styles.createBtn}>
+      <TouchableOpacity style={styles.createBtn} onPress={handleCreateGame}>
         <Text style={styles.createTxt}>+ Create Game</Text>
       </TouchableOpacity>
     </View>

@@ -1,10 +1,17 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { COLORS } from '../constants/theme';
 import { usePlayerStore } from '../store/playerStore';
 
 export default function ProfileScreen() {
-  const { playerName, playerId, stats } = usePlayerStore();
+  const { playerName, playerId, stats, refreshStats } = usePlayerStore();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshStats();
+    }, [])
+  );
 
   return (
     <View style={styles.container}>

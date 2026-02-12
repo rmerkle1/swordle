@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text } from 'react-native';
+import { Text, ActivityIndicator, View } from 'react-native';
 import { RootStackParamList, BottomTabParamList } from '../types';
 import { COLORS } from '../constants/theme';
+import { usePlayerStore } from '../store/playerStore';
+import WelcomeScreen from '../screens/WelcomeScreen';
 import HomeScreen from '../screens/HomeScreen';
 import GameScreen from '../screens/GameScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -41,6 +43,20 @@ function MainTabs() {
 }
 
 export default function AppNavigator() {
+  const { initialized, needsRegistration, loadPlayer } = usePlayerStore();
+
+  useEffect(() => {
+    loadPlayer();
+  }, []);
+
+  if (!initialized) {
+    return (
+      <View style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={COLORS.accent} />
+      </View>
+    );
+  }
+
   return (
     <Stack.Navigator
       screenOptions={{
@@ -49,16 +65,26 @@ export default function AppNavigator() {
         headerTitleStyle: { fontWeight: 'bold' },
       }}
     >
-      <Stack.Screen
-        name="Main"
-        component={MainTabs}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Game"
-        component={GameScreen}
-        options={{ title: 'Swordle' }}
-      />
+      {needsRegistration ? (
+        <Stack.Screen
+          name="Welcome"
+          component={WelcomeScreen}
+          options={{ headerShown: false }}
+        />
+      ) : (
+        <>
+          <Stack.Screen
+            name="Main"
+            component={MainTabs}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Game"
+            component={GameScreen}
+            options={{ title: 'Swordle' }}
+          />
+        </>
+      )}
     </Stack.Navigator>
   );
 }

@@ -104,7 +104,7 @@ export function resolveMoves(game: Game, moves: ResolvedMove[]): ResolutionResul
         }
         break;
       case 'attack':
-        events.push({ id: `ev-${day}-${eventId++}`, day, message: `${move.playerName} attacked`, playerId: move.playerId, playerName: move.playerName, playerColor: move.playerColor });
+        // Combat resolution handled in step 2b below
         break;
       case 'defend':
         events.push({ id: `ev-${day}-${eventId++}`, day, message: `${move.playerName} defended`, playerId: move.playerId, playerName: move.playerName, playerColor: move.playerColor });
@@ -114,6 +114,41 @@ export function resolveMoves(game: Game, moves: ResolvedMove[]): ResolutionResul
       case 'build':
         events.push({ id: `ev-${day}-${eventId++}`, day, message: `${move.playerName} built something`, playerId: move.playerId, playerName: move.playerName, playerColor: move.playerColor });
         break;
+    }
+  }
+
+  // --- 2b) Attack combat resolution ---
+  for (const move of moves) {
+    if (move.action !== 'attack') continue;
+    const attacker = playerMap.get(move.playerId);
+    if (!attacker || !attacker.isAlive) continue;
+    const origAttacker = game.players.find((p) => p.id === move.playerId);
+    if (origAttacker?.isStunned) continue;
+
+    for (const target of players) {
+      if (target.id === attacker.id || !target.isAlive) continue;
+      if (target.position !== attacker.position) continue;
+
+      const targetMove = moveMap.get(target.id);
+      const targetIsAttacking = targetMove?.action === 'attack';
+
+      if (targetIsAttacking) {
+        if (attacker.weaponTier > target.weaponTier) {
+          target.isAlive = false;
+          events.push({ id: `ev-${day}-${eventId++}`, day, message: `${attacker.name} (tier ${attacker.weaponTier}) eliminated ${target.name} (tier ${target.weaponTier}) in combat!`, playerId: attacker.id, playerName: attacker.name, playerColor: attacker.color });
+        } else if (target.weaponTier > attacker.weaponTier) {
+          attacker.isAlive = false;
+          events.push({ id: `ev-${day}-${eventId++}`, day, message: `${target.name} (tier ${target.weaponTier}) eliminated ${attacker.name} (tier ${attacker.weaponTier}) in combat!`, playerId: target.id, playerName: target.name, playerColor: target.color });
+          break;
+        } else {
+          attacker.isStunned = true;
+          target.isStunned = true;
+          events.push({ id: `ev-${day}-${eventId++}`, day, message: `${attacker.name} and ${target.name} clashed with equal weapons — both stunned!` });
+        }
+      } else {
+        target.isAlive = false;
+        events.push({ id: `ev-${day}-${eventId++}`, day, message: `${attacker.name} eliminated ${target.name}!`, playerId: attacker.id, playerName: attacker.name, playerColor: attacker.color });
+      }
     }
   }
 

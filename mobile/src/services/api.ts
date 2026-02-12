@@ -1,36 +1,60 @@
 import { Game, Move, PlayerStats } from '../types';
-import { MOCK_GAMES, MOCK_PLAYER_STATS } from '../data/mockData';
+import { API_BASE } from '../config';
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
 
 export const api = {
   async getGames(): Promise<Game[]> {
-    await delay(300);
-    return MOCK_GAMES;
+    return fetchJson<Game[]>(`${API_BASE}/games`);
   },
 
   async getGame(gameId: string): Promise<Game | undefined> {
-    await delay(200);
-    return MOCK_GAMES.find((g) => g.id === gameId);
+    try {
+      return await fetchJson<Game>(`${API_BASE}/games/${gameId}`);
+    } catch {
+      return undefined;
+    }
   },
 
   async submitMove(gameId: string, move: Move): Promise<{ success: boolean }> {
-    await delay(500);
-    return { success: true };
+    return fetchJson<{ success: boolean }>(`${API_BASE}/games/${gameId}/moves`, {
+      method: 'POST',
+      body: JSON.stringify(move),
+    });
   },
 
   async getPlayerStats(playerId: string): Promise<PlayerStats> {
-    await delay(200);
-    return MOCK_PLAYER_STATS;
+    return fetchJson<PlayerStats>(`${API_BASE}/players/${playerId}/stats`);
   },
 
-  async createGame(maxPlayers: number): Promise<Game> {
-    await delay(400);
-    return { ...MOCK_GAMES[1], id: `game-${Date.now()}` };
+  async registerPlayer(name: string): Promise<{ id: string; name: string; pubkey: string }> {
+    return fetchJson<{ id: string; name: string; pubkey: string }>(`${API_BASE}/players`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+  },
+
+  async createGame(maxPlayers: number, creatorId: string): Promise<Game> {
+    return fetchJson<Game>(`${API_BASE}/games`, {
+      method: 'POST',
+      body: JSON.stringify({ maxPlayers, creatorId }),
+    });
   },
 
   async joinGame(gameId: string, playerId: string): Promise<{ success: boolean }> {
-    await delay(300);
-    return { success: true };
+    return fetchJson<{ success: boolean; game: Game }>(`${API_BASE}/games/${gameId}/join`, {
+      method: 'POST',
+      body: JSON.stringify({ playerId }),
+    });
   },
 };

@@ -4,13 +4,6 @@ export type ActionType = 'attack' | 'defend' | 'collect' | 'build' | 'scout';
 
 export type BuildOption = 'wall' | 'trap' | 'upgrade';
 
-export interface SubmittedMove {
-  toTile: number;
-  action: ActionType;
-  buildOption: BuildOption | null;
-  day: number;
-}
-
 export type GameStatus = 'lobby' | 'active' | 'completed';
 
 export interface MapTile {
@@ -33,12 +26,6 @@ export interface GamePlayer {
   isStunned: boolean;
   daysInStorm: number;
   stormRevealed: boolean;
-}
-
-export interface ScoutReveal {
-  targetPlayerId: string;
-  targetPlayerName: string;
-  action: ActionType;
 }
 
 export interface Move {
@@ -76,38 +63,3 @@ export interface PlayerStats {
   winRate: number;
   eliminations: number;
 }
-
-export type VisibilityLevel = 'full' | 'partial' | 'fogged' | 'hidden';
-
-export interface FoggedTile {
-  index: number;
-  visibility: VisibilityLevel;
-  displayType: TileType;
-  displayEmoji: string;
-  displayPlayer: FoggedPlayer | null;
-}
-
-export interface FoggedPlayer {
-  isSilhouette: boolean;
-  color: string;
-  name: string;
-  id: string;
-  isAlive: boolean;
-}
-
-export interface TileMemoryEntry {
-  tileIndex: number;
-  lastFullVisibilityDay: number;
-  rememberedType: TileType;
-}
-
-export type RootStackParamList = {
-  Welcome: undefined;
-  Main: undefined;
-  Game: { gameId: string };
-};
-
-export type BottomTabParamList = {
-  Home: undefined;
-  Profile: undefined;
-};

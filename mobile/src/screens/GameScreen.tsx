@@ -36,7 +36,7 @@ export default function GameScreen() {
     return () => setCurrentGame(null);
   }, [route.params.gameId]);
 
-  const myPlayer = currentGame?.players.find((p) => p.id === playerId);
+  const myPlayer = currentGame?.players.find((p) => p.playerId === playerId);
 
   // Update tile memory when position or day changes
   useEffect(() => {
@@ -106,6 +106,7 @@ export default function GameScreen() {
       fromTile: myPlayer.position,
       toTile: selectedTile,
       action: pendingAction,
+      buildOption: pendingAction === 'build' ? buildOption : null,
     });
     setSubmittedMove({
       toTile: selectedTile,

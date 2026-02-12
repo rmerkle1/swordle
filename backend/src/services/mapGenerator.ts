@@ -1,20 +1,12 @@
-import { Game, MapTile, GamePlayer, GameEvent, PlayerStats, TileType } from '../types';
-import { PLAYER_COLORS } from '../constants/theme';
+import { MapTile, TileType } from '../types';
 
-// --- Seeded random for deterministic maps ---
-function seededRandom(seed: number) {
+export function seededRandom(seed: number): () => number {
   let s = seed;
   return () => {
     s = (s * 16807 + 0) % 2147483647;
     return s / 2147483647;
   };
 }
-
-// --- Map generation following game rules ---
-// Map size = N² playable tiles where N = number of players (4-8)
-// N landmarks (half forest, half mountain), not on edges
-// N/2 water tiles (seas cluster, rivers chain 1-2), can't split map
-// Every playable tile must be adjacent to at least 3 traversable tiles
 
 function getNeighbors8(idx: number, gridW: number, gridH: number): number[] {
   const x = idx % gridW;
@@ -59,10 +51,9 @@ function isEdgeTile(idx: number, playable: Set<number>, gridW: number, gridH: nu
   return getNeighbors8(idx, gridW, gridH).some((n) => !playable.has(n));
 }
 
-function generateMap(playerCount: number, seed: number): { tiles: MapTile[]; gridSize: number } {
+export function generateMap(playerCount: number, seed: number): { tiles: MapTile[]; gridSize: number } {
   const rand = seededRandom(seed);
   const targetPlayable = playerCount * playerCount;
-  // Grid large enough to hold the shape with void border
   const gridSize = Math.ceil(Math.sqrt(targetPlayable)) + 4;
   const total = gridSize * gridSize;
   const cx = (gridSize - 1) / 2;
@@ -75,7 +66,6 @@ function generateMap(playerCount: number, seed: number): { tiles: MapTile[]; gri
   playable.add(centerIdx);
 
   while (playable.size < targetPlayable && candidates.length > 0) {
-    // Pick a random candidate to expand from
     const pickIdx = Math.floor(rand() * candidates.length);
     const cur = candidates[pickIdx];
     candidates.splice(pickIdx, 1);
@@ -99,7 +89,6 @@ function generateMap(playerCount: number, seed: number): { tiles: MapTile[]; gri
       if (countTraversableNeighbors(idx, playable, gridSize, gridSize) < 3) {
         playable.delete(idx);
         changed = true;
-        // Re-add if it breaks connectivity
         if (!isConnected(playable, gridSize, gridSize)) {
           playable.add(idx);
           changed = false;
@@ -113,19 +102,16 @@ function generateMap(playerCount: number, seed: number): { tiles: MapTile[]; gri
   const waterTiles = new Set<number>();
   const interiorTiles = [...playable].filter((idx) => !isEdgeTile(idx, playable, gridSize, gridSize));
 
-  // Place water as small clusters/chains
   let waterPlaced = 0;
   const waterAttempts = 200;
   for (let attempt = 0; attempt < waterAttempts && waterPlaced < waterCount; attempt++) {
     const candidate = interiorTiles[Math.floor(rand() * interiorTiles.length)];
     if (waterTiles.has(candidate)) continue;
 
-    // Test: would removing this tile break connectivity or violate 3-neighbor rule?
     const testPlayable = new Set(playable);
     testPlayable.delete(candidate);
     if (!isConnected(testPlayable, gridSize, gridSize)) continue;
 
-    // Check all remaining neighbors still have 3+ traversable neighbors
     let valid = true;
     for (const n of getNeighbors8(candidate, gridSize, gridSize)) {
       if (testPlayable.has(n) && countTraversableNeighbors(n, testPlayable, gridSize, gridSize) < 3) {
@@ -141,8 +127,6 @@ function generateMap(playerCount: number, seed: number): { tiles: MapTile[]; gri
   }
 
   // 4) Place landmarks (N total: half forest, half mountain)
-  // Sort by traversable-neighbor count descending so the most interior tiles are picked first.
-  // This works even on small maps where binary edge/interior classification fails.
   const landmarkCount = playerCount;
   const forestCount = Math.ceil(landmarkCount / 2);
   const mountainCount = landmarkCount - forestCount;
@@ -152,9 +136,7 @@ function generateMap(playerCount: number, seed: number): { tiles: MapTile[]; gri
   const landmarkCandidates = [...playable]
     .map((idx) => ({ idx, neighbors: countTraversableNeighbors(idx, playable, gridSize, gridSize) }))
     .sort((a, b) => {
-      // More neighbors = more interior, pick first
       if (b.neighbors !== a.neighbors) return b.neighbors - a.neighbors;
-      // Tie-break randomly
       return rand() - 0.5;
     })
     .map((e) => e.idx);
@@ -187,8 +169,7 @@ function generateMap(playerCount: number, seed: number): { tiles: MapTile[]; gri
   return { tiles, gridSize };
 }
 
-// --- Spawn positions: random empty tiles ---
-function randomSpawnPositions(tiles: MapTile[], count: number, rand: () => number): number[] {
+export function randomSpawnPositions(tiles: MapTile[], count: number, rand: () => number): number[] {
   const emptyIndices = tiles.filter((t) => t.type === 'empty').map((t) => t.index);
   const positions: number[] = [];
   const used = new Set<number>();
@@ -201,64 +182,3 @@ function randomSpawnPositions(tiles: MapTile[], count: number, rand: () => numbe
   }
   return positions;
 }
-
-// --- Generate mock games ---
-const PLAYER_COUNT = 4;
-const rand = seededRandom(42);
-const { tiles: board, gridSize } = generateMap(PLAYER_COUNT, 42);
-const spawns = randomSpawnPositions(board, PLAYER_COUNT, rand);
-
-const mockPlayers: GamePlayer[] = [
-  { id: 'player-1', playerId: 'player-1', name: 'You', position: spawns[0], color: PLAYER_COLORS[0], wood: 2, metal: 1, weaponTier: 1, isAlive: true, isStunned: false, daysInStorm: 0, stormRevealed: false },
-  { id: 'player-2', playerId: 'player-2', name: 'Knight42', position: spawns[1], color: PLAYER_COLORS[1], wood: 1, metal: 0, weaponTier: 1, isAlive: true, isStunned: false, daysInStorm: 0, stormRevealed: false },
-  { id: 'player-3', playerId: 'player-3', name: 'DragonSlyr', position: spawns[2], color: PLAYER_COLORS[2], wood: 0, metal: 2, weaponTier: 1, isAlive: true, isStunned: false, daysInStorm: 0, stormRevealed: false },
-  { id: 'player-4', playerId: 'player-4', name: 'SwordMstr', position: spawns[3], color: PLAYER_COLORS[3], wood: 3, metal: 1, weaponTier: 2, isAlive: true, isStunned: false, daysInStorm: 0, stormRevealed: false },
-];
-
-const mockEvents: GameEvent[] = [
-  { id: 'e1', day: 1, message: 'Game started!' },
-];
-
-export const MOCK_GAMES: Game[] = [
-  {
-    id: 'game-1',
-    status: 'active',
-    currentDay: 3,
-    maxPlayers: PLAYER_COUNT,
-    boardSize: gridSize,
-    tiles: board,
-    players: mockPlayers,
-    events: mockEvents,
-  },
-  {
-    id: 'game-2',
-    status: 'lobby',
-    currentDay: 0,
-    maxPlayers: PLAYER_COUNT,
-    boardSize: gridSize,
-    tiles: board,
-    players: [mockPlayers[0], mockPlayers[1]],
-    events: [],
-  },
-  {
-    id: 'game-3',
-    status: 'completed',
-    currentDay: 12,
-    maxPlayers: PLAYER_COUNT,
-    boardSize: gridSize,
-    tiles: board,
-    players: mockPlayers.map((p, i) => ({ ...p, isAlive: i === 0 })),
-    events: [{ id: 'e6', day: 12, message: 'You won the game!', playerId: 'player-1', playerName: 'You', playerColor: PLAYER_COLORS[0] }],
-    winner: 'player-1',
-  },
-];
-
-export const MOCK_PLAYER_STATS: PlayerStats = {
-  gamesPlayed: 15,
-  wins: 6,
-  winRate: 0.4,
-  eliminations: 23,
-};
-
-export const TEST_PLAYER_ID = 'player-1';
-export const TEST_PLAYER_NAME = 'You';

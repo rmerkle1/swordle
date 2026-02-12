@@ -9,8 +9,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ==========================================
 CREATE TABLE IF NOT EXISTS games (
     id SERIAL PRIMARY KEY,
-    game_pubkey VARCHAR(44) UNIQUE,
-    creator_pubkey VARCHAR(44) NOT NULL,
+    game_pubkey VARCHAR(100) UNIQUE,
+    creator_pubkey VARCHAR(100),
     max_players SMALLINT NOT NULL DEFAULT 4,
     current_players SMALLINT NOT NULL DEFAULT 0,
     status VARCHAR(20) NOT NULL DEFAULT 'lobby', -- lobby, active, completed
@@ -19,8 +19,8 @@ CREATE TABLE IF NOT EXISTS games (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
-    winner_pubkey VARCHAR(44),
-    
+    winner_pubkey VARCHAR(100),
+
     CHECK (max_players >= 2 AND max_players <= 16),
     CHECK (status IN ('lobby', 'active', 'completed'))
 );
@@ -33,7 +33,7 @@ CREATE INDEX idx_games_created ON games(created_at DESC);
 -- ==========================================
 CREATE TABLE IF NOT EXISTS players (
     id SERIAL PRIMARY KEY,
-    pubkey VARCHAR(44) NOT NULL UNIQUE,
+    pubkey VARCHAR(100) NOT NULL UNIQUE,
     username VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_seen TIMESTAMPTZ DEFAULT NOW()
@@ -48,7 +48,9 @@ CREATE TABLE IF NOT EXISTS game_players (
     id SERIAL PRIMARY KEY,
     game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
     player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
-    player_pubkey VARCHAR(44) NOT NULL,
+    player_pubkey VARCHAR(100) NOT NULL,
+    display_name VARCHAR(50),
+    color VARCHAR(10),
     fighter_class VARCHAR(20) NOT NULL DEFAULT 'swordsman',
     starting_position SMALLINT,
     current_position SMALLINT,
@@ -56,11 +58,14 @@ CREATE TABLE IF NOT EXISTS game_players (
     wood SMALLINT NOT NULL DEFAULT 0,
     metal SMALLINT NOT NULL DEFAULT 0,
     status VARCHAR(20) NOT NULL DEFAULT 'active', -- active, eliminated
+    is_stunned BOOLEAN NOT NULL DEFAULT FALSE,
+    days_in_storm SMALLINT NOT NULL DEFAULT 0,
+    storm_revealed BOOLEAN NOT NULL DEFAULT FALSE,
     last_move_day SMALLINT NOT NULL DEFAULT 0,
     joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     eliminated_at TIMESTAMPTZ,
     eliminated_by_player_id INTEGER REFERENCES game_players(id),
-    
+
     UNIQUE(game_id, player_id),
     CHECK (fighter_class IN ('swordsman', 'archer', 'cavalry', 'wizard')),
     CHECK (status IN ('active', 'eliminated')),
@@ -78,12 +83,12 @@ CREATE TABLE IF NOT EXISTS map_tiles (
     id SERIAL PRIMARY KEY,
     game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
     tile_index SMALLINT NOT NULL,
-    tile_type VARCHAR(20) NOT NULL DEFAULT 'empty', -- empty, forest, mountain
+    tile_type VARCHAR(20) NOT NULL DEFAULT 'empty',
     is_traversable BOOLEAN NOT NULL DEFAULT TRUE,
     is_landmark BOOLEAN NOT NULL DEFAULT FALSE,
-    
+
     UNIQUE(game_id, tile_index),
-    CHECK (tile_type IN ('empty', 'forest', 'mountain', 'wall', 'trap'))
+    CHECK (tile_type IN ('empty', 'forest', 'mountain', 'wall', 'trap', 'void', 'water', 'storm'))
 );
 
 CREATE INDEX idx_map_tiles_game ON map_tiles(game_id);
@@ -97,12 +102,13 @@ CREATE TABLE IF NOT EXISTS moves (
     game_player_id INTEGER NOT NULL REFERENCES game_players(id) ON DELETE CASCADE,
     day SMALLINT NOT NULL,
     destination SMALLINT NOT NULL,
-    action VARCHAR(20) NOT NULL, -- attack, defend, chop, mine
+    action VARCHAR(20) NOT NULL,
+    build_option VARCHAR(20),
     submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     processed BOOLEAN NOT NULL DEFAULT FALSE,
-    
+
     UNIQUE(game_id, game_player_id, day),
-    CHECK (action IN ('attack', 'defend', 'chop', 'mine', 'build', 'scout', 'trade')),
+    CHECK (action IN ('attack', 'defend', 'collect', 'build', 'scout')),
     CHECK (day > 0)
 );
 
@@ -116,14 +122,15 @@ CREATE TABLE IF NOT EXISTS game_events (
     id SERIAL PRIMARY KEY,
     game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
     day SMALLINT NOT NULL,
-    event_type VARCHAR(30) NOT NULL, -- combat, elimination, resource_gain
+    event_type VARCHAR(30) NOT NULL,
+    message TEXT,
     player_id INTEGER REFERENCES game_players(id),
     target_player_id INTEGER REFERENCES game_players(id),
     tile_index SMALLINT,
     details JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
-    CHECK (event_type IN ('combat', 'elimination', 'resource_gain', 'weapon_upgrade', 'move'))
+
+    CHECK (event_type IN ('combat', 'elimination', 'resource_gain', 'weapon_upgrade', 'move', 'storm', 'build', 'scout'))
 );
 
 CREATE INDEX idx_game_events_game ON game_events(game_id, day);
@@ -139,7 +146,7 @@ CREATE TABLE IF NOT EXISTS player_stats (
     losses INTEGER NOT NULL DEFAULT 0,
     eliminations INTEGER NOT NULL DEFAULT 0,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
+
     CHECK (total_games >= 0 AND wins >= 0 AND losses >= 0 AND eliminations >= 0)
 );
 
@@ -150,7 +157,7 @@ CREATE INDEX idx_player_stats_wins ON player_stats(wins DESC);
 -- ==========================================
 
 -- Create a test player
-INSERT INTO players (pubkey, username) 
+INSERT INTO players (pubkey, username)
 VALUES ('TestPlayer1111111111111111111111111111', 'Test Player 1')
 ON CONFLICT (pubkey) DO NOTHING;
 
@@ -179,7 +186,7 @@ BEGIN
     ) INTO result
     FROM games g
     WHERE g.id = p_game_id;
-    
+
     RETURN result;
 END;
 $$ LANGUAGE plpgsql;
@@ -194,11 +201,11 @@ BEGIN
     SELECT COUNT(*) INTO active_players
     FROM game_players
     WHERE game_id = p_game_id AND status = 'active';
-    
+
     SELECT COUNT(*) INTO submitted_moves
     FROM moves
     WHERE game_id = p_game_id AND day = p_day;
-    
+
     RETURN submitted_moves >= active_players;
 END;
 $$ LANGUAGE plpgsql;
@@ -208,7 +215,7 @@ $$ LANGUAGE plpgsql;
 -- ==========================================
 
 CREATE OR REPLACE VIEW leaderboard AS
-SELECT 
+SELECT
     p.pubkey,
     p.username,
     ps.total_games,
@@ -228,5 +235,5 @@ LIMIT 100;
 
 -- Verify schema
 SELECT 'Schema created successfully! Tables: ' || count(*) as status
-FROM information_schema.tables 
+FROM information_schema.tables
 WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
