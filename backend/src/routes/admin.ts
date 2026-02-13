@@ -69,7 +69,8 @@ router.post('/process-day', async (req: Request, res: Response) => {
     const updatedGame = await processDay(id);
     res.json(updatedGame);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('Admin route error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

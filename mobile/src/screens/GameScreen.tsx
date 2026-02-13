@@ -23,6 +23,7 @@ export default function GameScreen() {
   const navigation = useNavigation<Nav>();
   const { playerId } = usePlayerStore();
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const {
     currentGame, setCurrentGame,
@@ -38,9 +39,19 @@ export default function GameScreen() {
   } = useGameStore();
 
   useEffect(() => {
+    let isInitial = true;
     const fetchGame = () => {
       api.getGame(route.params.gameId).then((g) => {
-        if (g) setCurrentGame(g);
+        if (g) {
+          setCurrentGame(g);
+          setLoadError(false);
+        } else if (isInitial) {
+          setLoadError(true);
+        }
+        isInitial = false;
+      }).catch(() => {
+        if (isInitial) setLoadError(true);
+        isInitial = false;
       });
     };
     fetchGame();
@@ -170,7 +181,23 @@ export default function GameScreen() {
   if (!currentGame) {
     return (
       <View style={styles.loading}>
-        <Text style={styles.loadingText}>Loading...</Text>
+        <Text style={styles.loadingText}>
+          {loadError ? 'Failed to load game' : 'Loading...'}
+        </Text>
+        {loadError && (
+          <TouchableOpacity
+            style={styles.retryBtn}
+            onPress={() => {
+              setLoadError(false);
+              api.getGame(route.params.gameId).then((g) => {
+                if (g) setCurrentGame(g);
+                else setLoadError(true);
+              }).catch(() => setLoadError(true));
+            }}
+          >
+            <Text style={styles.retryTxt}>Retry</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   }
@@ -333,6 +360,18 @@ const styles = StyleSheet.create({
   loadingText: {
     color: COLORS.text,
     fontSize: 16,
+  },
+  retryBtn: {
+    marginTop: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    backgroundColor: COLORS.accent,
+    borderRadius: 8,
+  },
+  retryTxt: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   scroll: {
     paddingBottom: 40,

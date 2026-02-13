@@ -19,7 +19,8 @@ router.get('/', async (_req: Request, res: Response) => {
     }
     res.json(games);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('Games route error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -37,7 +38,8 @@ router.get('/:id', async (req: Request, res: Response) => {
     if (err.message === 'Game not found') {
       res.status(404).json({ error: 'Game not found' });
     } else {
-      res.status(500).json({ error: err.message });
+      console.error('Games route error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
     }
   }
 });
@@ -99,7 +101,8 @@ router.post('/', async (req: Request, res: Response) => {
     const game = await getFullGame(gameId);
     res.status(201).json(game);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('Games route error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -207,7 +210,8 @@ router.post('/:id/join', async (req: Request, res: Response) => {
     const game = await getFullGame(gameId);
     res.json({ success: true, game });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('Games route error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -287,7 +291,8 @@ router.post('/:id/leave', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Cannot leave a completed game' });
     }
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('Games route error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

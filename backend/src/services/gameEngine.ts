@@ -48,6 +48,7 @@ interface ResolutionResult {
   updatedPlayers: GamePlayer[];
   updatedTiles: MapTile[];
   newEvents: GameEvent[];
+  trapOwners: Map<number, string>;
 }
 
 function isStormConnected(playable: Set<number>, boardSize: number): boolean {
@@ -72,7 +73,8 @@ export function resolveMoves(
   game: { currentDay: number; boardSize: number },
   players: GamePlayer[],
   tiles: MapTile[],
-  moves: ResolvedMove[]
+  moves: ResolvedMove[],
+  trapOwners: Map<number, string> = new Map()
 ): ResolutionResult {
   const events: GameEvent[] = [];
   const day = game.currentDay + 1;
@@ -189,6 +191,7 @@ export function resolveMoves(
               });
             } else if (move.buildOption === 'trap') {
               updatedTiles[move.toTile] = { ...destTile, type: 'trap' };
+              trapOwners.set(move.toTile, move.playerId);
               events.push({
                 id: `ev-${day}-${eventId++}`, day,
                 message: `${move.playerName} placed a trap`,
@@ -217,12 +220,12 @@ export function resolveMoves(
     if (!player.isAlive) continue;
     const tile = updatedTiles[player.position];
     if (tile.type === 'trap') {
-      // Check if the player is the one who placed the trap (they shouldn't trigger their own trap)
-      const playerMove = moveMap.get(player.id);
-      const justBuiltTrap = playerMove?.action === 'build' && playerMove?.buildOption === 'trap' && playerMove?.toTile === player.position;
-      if (!justBuiltTrap) {
+      // Skip if this player owns the trap
+      const owner = trapOwners.get(player.position);
+      if (owner !== player.id) {
         player.isStunned = true;
         updatedTiles[player.position] = { ...tile, type: 'empty' };
+        trapOwners.delete(player.position);
         events.push({
           id: `ev-${day}-${eventId++}`, day,
           message: `${player.name} stepped on a trap and is stunned!`,
@@ -376,7 +379,7 @@ export function resolveMoves(
     }
   }
 
-  return { updatedPlayers, updatedTiles, newEvents: events };
+  return { updatedPlayers, updatedTiles, newEvents: events, trapOwners };
 }
 
 // --- DB-backed orchestration ---
@@ -454,6 +457,14 @@ export async function processDay(gameId: number): Promise<Game> {
       }
     }
 
+    // Load trap owners
+    const trapOwners = new Map<number, string>();
+    for (const row of tileRows) {
+      if (row.tile_type === 'trap' && row.placed_by_player_id) {
+        trapOwners.set(row.tile_index, String(row.placed_by_player_id));
+      }
+    }
+
     // Fetch unprocessed moves for this day
     const movesRes = await client.query(
       `SELECT m.*, gp.display_name, gp.color, gp.player_pubkey
@@ -479,7 +490,8 @@ export async function processDay(gameId: number): Promise<Game> {
       { currentDay, boardSize },
       players,
       tiles,
-      resolvedMoves
+      resolvedMoves,
+      trapOwners
     );
 
     // Write back player updates
@@ -509,9 +521,10 @@ export async function processDay(gameId: number): Promise<Game> {
     for (const tile of result.updatedTiles) {
       const origRow = tileRowMap.get(tile.index);
       if (origRow && origRow.tile_type !== tile.type) {
+        const placedBy = result.trapOwners.get(tile.index) ?? null;
         await client.query(
-          'UPDATE map_tiles SET tile_type = $1, is_traversable = $2 WHERE game_id = $3 AND tile_index = $4',
-          [tile.type, !['void', 'water', 'storm', 'wall'].includes(tile.type), gameId, tile.index]
+          'UPDATE map_tiles SET tile_type = $1, is_traversable = $2, placed_by_player_id = $3 WHERE game_id = $4 AND tile_index = $5',
+          [tile.type, !['void', 'water', 'storm', 'wall'].includes(tile.type), tile.type === 'trap' ? placedBy : null, gameId, tile.index]
         );
       }
     }

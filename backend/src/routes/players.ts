@@ -32,7 +32,8 @@ router.post('/', async (req: Request, res: Response) => {
       pubkey: player.pubkey,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('Players route error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -64,7 +65,8 @@ router.get('/:id/stats', async (req: Request, res: Response) => {
 
     res.json(stats);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('Players route error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
