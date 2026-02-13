@@ -9,8 +9,12 @@ router.post('/process-day', async (req: Request, res: Response) => {
   try {
     const { gameId, adminSecret } = req.body;
 
-    // Optional admin secret check
-    if (process.env.ADMIN_SECRET && adminSecret !== process.env.ADMIN_SECRET) {
+    // Admin secret check — always required
+    if (!process.env.ADMIN_SECRET) {
+      res.status(500).json({ error: 'ADMIN_SECRET not configured on server' });
+      return;
+    }
+    if (adminSecret !== process.env.ADMIN_SECRET) {
       res.status(403).json({ error: 'Invalid admin secret' });
       return;
     }

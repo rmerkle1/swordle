@@ -211,4 +211,84 @@ router.post('/:id/join', async (req: Request, res: Response) => {
   }
 });
 
+// POST /:id/leave — leave a lobby game or forfeit an active game
+router.post('/:id/leave', async (req: Request, res: Response) => {
+  try {
+    const gameId = parseInt(req.params.id, 10);
+    if (isNaN(gameId)) {
+      res.status(400).json({ error: 'Invalid game ID' });
+      return;
+    }
+
+    const { playerId } = req.body;
+    if (!playerId) {
+      res.status(400).json({ error: 'playerId is required' });
+      return;
+    }
+
+    // Fetch game
+    const gameRes = await query('SELECT * FROM games WHERE id = $1', [gameId]);
+    if (gameRes.rows.length === 0) {
+      res.status(404).json({ error: 'Game not found' });
+      return;
+    }
+    const gameRow = gameRes.rows[0];
+
+    // Find game_player row
+    const gpRes = await query(
+      'SELECT * FROM game_players WHERE game_id = $1 AND player_id = $2',
+      [gameId, parseInt(playerId, 10)]
+    );
+    if (gpRes.rows.length === 0) {
+      res.status(404).json({ error: 'Player not in this game' });
+      return;
+    }
+    const gp = gpRes.rows[0];
+
+    if (gameRow.status === 'lobby') {
+      // Remove player from lobby
+      await query('DELETE FROM game_players WHERE id = $1', [gp.id]);
+      await query(
+        'UPDATE games SET current_players = current_players - 1 WHERE id = $1',
+        [gameId]
+      );
+      res.json({ success: true });
+    } else if (gameRow.status === 'active') {
+      if (gp.status !== 'active') {
+        res.status(400).json({ error: 'Player is already eliminated' });
+        return;
+      }
+      // Forfeit — mark player as eliminated
+      await query(
+        "UPDATE game_players SET status = 'eliminated', eliminated_at = NOW() WHERE id = $1",
+        [gp.id]
+      );
+      // Insert forfeit event
+      await query(
+        `INSERT INTO game_events (game_id, day, event_type, message, player_id)
+         VALUES ($1, $2, 'move', $3, $4)`,
+        [gameId, gameRow.current_day, `${gp.display_name} forfeited the game`, gp.id]
+      );
+      // Check if only 1 player remains — end game
+      const aliveRes = await query(
+        "SELECT * FROM game_players WHERE game_id = $1 AND status = 'active'",
+        [gameId]
+      );
+      if (aliveRes.rows.length <= 1 && aliveRes.rows.length < gameRow.current_players) {
+        const winnerPubkey = aliveRes.rows.length === 1 ? aliveRes.rows[0].player_pubkey : null;
+        await query(
+          "UPDATE games SET status = 'completed', completed_at = NOW(), winner_pubkey = $1 WHERE id = $2",
+          [winnerPubkey, gameId]
+        );
+      }
+      const game = await getFullGame(gameId);
+      res.json({ success: true, game });
+    } else {
+      res.status(400).json({ error: 'Cannot leave a completed game' });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

@@ -1,5 +1,5 @@
-import React, { useEffect, useCallback } from 'react';
-import { View, Text, SectionList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useEffect, useCallback, useState } from 'react';
+import { View, Text, SectionList, TouchableOpacity, StyleSheet, Alert, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,9 +16,19 @@ export default function HomeScreen() {
   const navigation = useNavigation<Nav>();
   const { games, setGames } = useGameStore();
   const { playerId } = usePlayerStore();
+  const [refreshing, setRefreshing] = useState(false);
 
   const refreshGames = useCallback(() => {
     api.getGames().then(setGames).catch(() => {});
+  }, []);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const g = await api.getGames();
+      setGames(g);
+    } catch {}
+    setRefreshing(false);
   }, []);
 
   useFocusEffect(
@@ -78,6 +88,9 @@ export default function HomeScreen() {
         }}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={<Text style={styles.empty}>No games yet</Text>}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.textSecondary} />
+        }
       />
       <TouchableOpacity style={styles.createBtn} onPress={handleCreateGame}>
         <Text style={styles.createTxt}>+ Create Game</Text>

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useCallback, useState, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
@@ -142,6 +142,31 @@ export default function GameScreen() {
     }
   }, [currentGame, myPlayer, selectedTile, pendingAction, buildOption]);
 
+  const handleLeave = useCallback(() => {
+    if (!currentGame || !playerId) return;
+    const isLobby = currentGame.status === 'lobby';
+    const title = isLobby ? 'Leave Lobby' : 'Forfeit Game';
+    const message = isLobby
+      ? 'Are you sure you want to leave this lobby?'
+      : 'Are you sure you want to forfeit? You will be eliminated.';
+
+    Alert.alert(title, message, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: isLobby ? 'Leave' : 'Forfeit',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.leaveGame(currentGame.id, playerId);
+            navigation.goBack();
+          } catch (err: any) {
+            Alert.alert('Error', err.message || 'Failed to leave game');
+          }
+        },
+      },
+    ]);
+  }, [currentGame, playerId]);
+
   if (!currentGame) {
     return (
       <View style={styles.loading}>
@@ -206,6 +231,9 @@ export default function GameScreen() {
               {p.name}
             </Text>
           ))}
+          <TouchableOpacity style={styles.leaveBtn} onPress={handleLeave}>
+            <Text style={styles.leaveTxt}>Leave Lobby</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -280,6 +308,11 @@ export default function GameScreen() {
         )}
         {currentGame.events.length > 0 && (
           <GameLog events={currentGame.events} />
+        )}
+        {!isEliminated && (
+          <TouchableOpacity style={styles.forfeitBtn} onPress={handleLeave}>
+            <Text style={styles.forfeitTxt}>Forfeit Game</Text>
+          </TouchableOpacity>
         )}
       </ScrollView>
     </View>
@@ -367,5 +400,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginVertical: 4,
+  },
+  leaveBtn: {
+    marginTop: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.error,
+  },
+  leaveTxt: {
+    color: COLORS.error,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  forfeitBtn: {
+    marginTop: 16,
+    marginHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.textSecondary,
+  },
+  forfeitTxt: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
   },
 });

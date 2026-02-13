@@ -57,4 +57,11 @@ export const api = {
       body: JSON.stringify({ playerId }),
     });
   },
+
+  async leaveGame(gameId: string, playerId: string): Promise<{ success: boolean }> {
+    return fetchJson<{ success: boolean }>(`${API_BASE}/games/${gameId}/leave`, {
+      method: 'POST',
+      body: JSON.stringify({ playerId }),
+    });
+  },
 };
