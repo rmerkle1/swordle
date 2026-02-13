@@ -11,6 +11,7 @@ import { computeFoggedBoard } from '../utils/fogOfWar';
 import GameBoard from '../components/GameBoard';
 import PlayerStatsBar from '../components/PlayerStats';
 import MoveSelector from '../components/MoveSelector';
+import GameLog from '../components/GameLog';
 
 type GameRoute = RouteProp<RootStackParamList, 'Game'>;
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -183,6 +184,9 @@ export default function GameScreen() {
             validTargets={new Set()}
             onTilePress={() => {}}
           />
+          {currentGame.events.length > 0 && (
+            <GameLog events={currentGame.events} />
+          )}
         </ScrollView>
       </View>
     );
@@ -273,6 +277,9 @@ export default function GameScreen() {
             onSubmit={handleSubmit}
             onCancel={resetMove}
           />
+        )}
+        {currentGame.events.length > 0 && (
+          <GameLog events={currentGame.events} />
         )}
       </ScrollView>
     </View>

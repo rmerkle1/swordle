@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { query } from '../config/database';
-import { getAdjacentTiles } from '../services/gameEngine';
+import { getAdjacentTiles, processDay, getFullGame } from '../services/gameEngine';
 
 const router = Router({ mergeParams: true });
 
@@ -66,6 +66,12 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
+    // Validate fromTile matches actual position
+    if (fromTile !== player.current_position) {
+      res.status(400).json({ error: 'fromTile does not match your current position' });
+      return;
+    }
+
     const nextDay = game.current_day + 1;
 
     // Check for duplicate move
@@ -116,6 +122,24 @@ router.post('/', async (req: Request, res: Response) => {
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [gameId, gamePlayerId, nextDay, toTile, action, buildOption || null]
     );
+
+    // Auto-process day if all alive players have submitted moves
+    const alivePlayersRes = await query(
+      "SELECT id FROM game_players WHERE game_id = $1 AND status = 'active'",
+      [gameId]
+    );
+    const submittedMovesRes = await query(
+      'SELECT DISTINCT game_player_id FROM moves WHERE game_id = $1 AND day = $2 AND processed = FALSE',
+      [gameId, nextDay]
+    );
+
+    if (submittedMovesRes.rows.length >= alivePlayersRes.rows.length) {
+      try {
+        await processDay(gameId);
+      } catch (processErr: any) {
+        console.error('Auto process-day failed:', processErr.message);
+      }
+    }
 
     res.json({ success: true });
   } catch (err: any) {
