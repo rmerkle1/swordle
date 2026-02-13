@@ -51,7 +51,7 @@ export const api = {
     });
   },
 
-  async joinGame(gameId: string, playerId: string): Promise<{ success: boolean }> {
+  async joinGame(gameId: string, playerId: string): Promise<{ success: boolean; game: Game }> {
     return fetchJson<{ success: boolean; game: Game }>(`${API_BASE}/games/${gameId}/join`, {
       method: 'POST',
       body: JSON.stringify({ playerId }),

@@ -12,9 +12,10 @@ const STATUS_BADGE: Record<string, { bg: string; label: string }> = {
 interface Props {
   game: Game;
   onPress: () => void;
+  onJoin?: () => void;
 }
 
-export default function GameCard({ game, onPress }: Props) {
+export default function GameCard({ game, onPress, onJoin }: Props) {
   const badge = STATUS_BADGE[game.status];
 
   return (
@@ -33,6 +34,11 @@ export default function GameCard({ game, onPress }: Props) {
       </Text>
       {game.winner && (
         <Text style={styles.winner}>{'\u{1F3C6}'} Winner declared</Text>
+      )}
+      {game.status === 'lobby' && onJoin && (
+        <TouchableOpacity style={styles.joinBtn} onPress={onJoin} activeOpacity={0.7}>
+          <Text style={styles.joinTxt}>Join Game</Text>
+        </TouchableOpacity>
       )}
     </TouchableOpacity>
   );
@@ -81,5 +87,17 @@ const styles = StyleSheet.create({
     color: COLORS.gold,
     fontSize: 13,
     marginTop: 4,
+  },
+  joinBtn: {
+    backgroundColor: COLORS.accent,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  joinTxt: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });

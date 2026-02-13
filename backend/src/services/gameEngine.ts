@@ -212,6 +212,26 @@ export function resolveMoves(
     }
   }
 
+  // --- 2a) Trap effects ---
+  for (const player of updatedPlayers) {
+    if (!player.isAlive) continue;
+    const tile = updatedTiles[player.position];
+    if (tile.type === 'trap') {
+      // Check if the player is the one who placed the trap (they shouldn't trigger their own trap)
+      const playerMove = moveMap.get(player.id);
+      const justBuiltTrap = playerMove?.action === 'build' && playerMove?.buildOption === 'trap' && playerMove?.toTile === player.position;
+      if (!justBuiltTrap) {
+        player.isStunned = true;
+        updatedTiles[player.position] = { ...tile, type: 'empty' };
+        events.push({
+          id: `ev-${day}-${eventId++}`, day,
+          message: `${player.name} stepped on a trap and is stunned!`,
+          playerId: player.id, playerName: player.name, playerColor: player.color,
+        });
+      }
+    }
+  }
+
   // --- 2b) Attack combat resolution ---
   // Group attackers by destination tile, then resolve against all players on that tile
   for (const move of moves) {
@@ -531,6 +551,32 @@ export async function processDay(gameId: number): Promise<Game> {
         `UPDATE games SET status = 'completed', completed_at = NOW(), winner_pubkey = $1 WHERE id = $2`,
         [winnerPubkey, gameId]
       );
+
+      // Update player_stats for all players in this game
+      for (const player of result.updatedPlayers) {
+        const gpRow = playerRowMap.get(player.id);
+        if (!gpRow) continue;
+        const pId = gpRow.player_id;
+        const isWinner = alivePlayers.length === 1 && player.id === alivePlayers[0].id;
+
+        // Count how many players this player eliminated
+        const elimCount = result.newEvents.filter(
+          (e) => e.message?.includes('eliminated') && e.playerId === player.id
+        ).length;
+
+        await client.query(
+          `UPDATE player_stats SET
+            total_games = total_games + 1,
+            wins = wins + $1,
+            losses = losses + $2,
+            eliminations = eliminations + $3,
+            win_rate = CASE WHEN (total_games + 1) > 0
+              THEN (wins + $1)::FLOAT / (total_games + 1)
+              ELSE 0 END
+          WHERE player_id = $4`,
+          [isWinner ? 1 : 0, isWinner ? 0 : 1, elimCount, pId]
+        );
+      }
     }
 
     await client.query('COMMIT');

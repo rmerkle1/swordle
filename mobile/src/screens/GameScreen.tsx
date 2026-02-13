@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useCallback } from 'react';
+import React, { useEffect, useMemo, useCallback, useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import { RouteProp, useRoute } from '@react-navigation/native';
+import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
 import { COLORS } from '../constants/theme';
 import { useGameStore, getAdjacentTiles } from '../store/gameStore';
@@ -12,10 +13,16 @@ import PlayerStatsBar from '../components/PlayerStats';
 import MoveSelector from '../components/MoveSelector';
 
 type GameRoute = RouteProp<RootStackParamList, 'Game'>;
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+const POLL_INTERVAL = 5000;
 
 export default function GameScreen() {
   const route = useRoute<GameRoute>();
+  const navigation = useNavigation<Nav>();
   const { playerId } = usePlayerStore();
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const {
     currentGame, setCurrentGame,
     selectedTile, selectTile,
@@ -30,10 +37,17 @@ export default function GameScreen() {
   } = useGameStore();
 
   useEffect(() => {
-    api.getGame(route.params.gameId).then((g) => {
-      if (g) setCurrentGame(g);
-    });
-    return () => setCurrentGame(null);
+    const fetchGame = () => {
+      api.getGame(route.params.gameId).then((g) => {
+        if (g) setCurrentGame(g);
+      });
+    };
+    fetchGame();
+    pollRef.current = setInterval(fetchGame, POLL_INTERVAL);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      setCurrentGame(null);
+    };
   }, [route.params.gameId]);
 
   const myPlayer = currentGame?.players.find((p) => p.playerId === playerId);
@@ -101,32 +115,108 @@ export default function GameScreen() {
     }
 
     setSubmitting(true);
-    await api.submitMove(currentGame.id, {
-      playerId: myPlayer.id,
-      fromTile: myPlayer.position,
-      toTile: selectedTile,
-      action: pendingAction,
-      buildOption: pendingAction === 'build' ? buildOption : null,
-    });
-    setSubmittedMove({
-      toTile: selectedTile,
-      action: pendingAction,
-      buildOption: buildOption,
-      day: currentGame.currentDay,
-    });
-    setSubmitting(false);
-    setShowBanner(true);
-    resetMove();
-    setTimeout(() => setShowBanner(false), 2000);
+    setErrorBanner(null);
+    try {
+      await api.submitMove(currentGame.id, {
+        playerId: myPlayer.id,
+        fromTile: myPlayer.position,
+        toTile: selectedTile,
+        action: pendingAction,
+        buildOption: pendingAction === 'build' ? buildOption : null,
+      });
+      setSubmittedMove({
+        toTile: selectedTile,
+        action: pendingAction,
+        buildOption: buildOption,
+        day: currentGame.currentDay,
+      });
+      setShowBanner(true);
+      resetMove();
+      setTimeout(() => setShowBanner(false), 2000);
+    } catch (err: any) {
+      setErrorBanner(err.message || 'Failed to submit move');
+      setTimeout(() => setErrorBanner(null), 3000);
+    } finally {
+      setSubmitting(false);
+    }
   }, [currentGame, myPlayer, selectedTile, pendingAction, buildOption]);
 
-  if (!currentGame || !myPlayer) {
+  if (!currentGame) {
     return (
       <View style={styles.loading}>
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
+
+  // Game completed — show victory/game-over screen
+  if (currentGame.status === 'completed') {
+    const winnerPlayer = currentGame.winner
+      ? currentGame.players.find((p) => p.id === currentGame.winner)
+      : null;
+    const isWinner = winnerPlayer?.playerId === playerId;
+
+    return (
+      <View style={styles.container}>
+        <View style={styles.gameOverOverlay}>
+          <Text style={styles.gameOverTitle}>
+            {isWinner ? 'Victory!' : 'Game Over'}
+          </Text>
+          {winnerPlayer && (
+            <Text style={styles.gameOverWinner}>
+              {isWinner ? 'You won!' : `${winnerPlayer.name} wins!`}
+            </Text>
+          )}
+          {!winnerPlayer && (
+            <Text style={styles.gameOverWinner}>No survivors</Text>
+          )}
+          <Text style={styles.gameOverDay}>
+            Lasted {currentGame.currentDay} days
+          </Text>
+        </View>
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <GameBoard
+            foggedTiles={foggedTiles}
+            boardSize={currentGame.boardSize}
+            selectedTile={null}
+            lockedTile={null}
+            validTargets={new Set()}
+            onTilePress={() => {}}
+          />
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // Lobby — waiting for players
+  if (currentGame.status === 'lobby') {
+    return (
+      <View style={styles.container}>
+        <View style={styles.lobbyOverlay}>
+          <Text style={styles.lobbyTitle}>Waiting for Players</Text>
+          <Text style={styles.lobbyCount}>
+            {currentGame.players.length}/{currentGame.maxPlayers} joined
+          </Text>
+          {currentGame.players.map((p) => (
+            <Text key={p.id} style={[styles.lobbyPlayer, { color: p.color }]}>
+              {p.name}
+            </Text>
+          ))}
+        </View>
+      </View>
+    );
+  }
+
+  // Player not found in active game
+  if (!myPlayer) {
+    return (
+      <View style={styles.loading}>
+        <Text style={styles.loadingText}>You are not in this game</Text>
+      </View>
+    );
+  }
+
+  const isEliminated = !myPlayer.isAlive;
 
   return (
     <View style={styles.container}>
@@ -135,17 +225,27 @@ export default function GameScreen() {
           <Text style={styles.bannerText}>{'\u2705'} Move submitted!</Text>
         </View>
       )}
+      {errorBanner && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.bannerText}>{errorBanner}</Text>
+        </View>
+      )}
+      {isEliminated && (
+        <View style={styles.eliminatedBanner}>
+          <Text style={styles.bannerText}>You have been eliminated</Text>
+        </View>
+      )}
       <PlayerStatsBar player={myPlayer} currentDay={currentGame.currentDay} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <GameBoard
           foggedTiles={foggedTiles}
           boardSize={currentGame.boardSize}
-          selectedTile={selectedTile}
+          selectedTile={isEliminated ? null : selectedTile}
           lockedTile={submittedMove?.toTile ?? null}
-          validTargets={validTargets}
-          onTilePress={handleTilePress}
+          validTargets={isEliminated ? new Set() : validTargets}
+          onTilePress={isEliminated ? () => {} : handleTilePress}
         />
-        {selectedTile !== null && (
+        {!isEliminated && selectedTile !== null && (
           <MoveSelector
             selectedAction={pendingAction}
             buildOption={buildOption}
@@ -159,7 +259,7 @@ export default function GameScreen() {
             onCancel={resetMove}
           />
         )}
-        {submittedMove && selectedTile === null && (
+        {!isEliminated && submittedMove && selectedTile === null && (
           <MoveSelector
             selectedAction={submittedMove.action}
             buildOption={submittedMove.buildOption}
@@ -202,9 +302,63 @@ const styles = StyleSheet.create({
     padding: 10,
     alignItems: 'center',
   },
+  errorBanner: {
+    backgroundColor: COLORS.error,
+    padding: 10,
+    alignItems: 'center',
+  },
+  eliminatedBanner: {
+    backgroundColor: '#555',
+    padding: 10,
+    alignItems: 'center',
+  },
   bannerText: {
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 14,
+  },
+  gameOverOverlay: {
+    padding: 24,
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  gameOverTitle: {
+    color: COLORS.gold,
+    fontSize: 32,
+    fontWeight: 'bold',
+  },
+  gameOverWinner: {
+    color: COLORS.text,
+    fontSize: 18,
+    marginTop: 8,
+  },
+  gameOverDay: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    marginTop: 4,
+  },
+  lobbyOverlay: {
+    flex: 1,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lobbyTitle: {
+    color: COLORS.text,
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  lobbyCount: {
+    color: COLORS.textSecondary,
+    fontSize: 16,
+    marginBottom: 16,
+  },
+  lobbyPlayer: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginVertical: 4,
   },
 });

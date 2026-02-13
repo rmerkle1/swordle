@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
-import { View, Text, SectionList, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect, useCallback } from 'react';
+import { View, Text, SectionList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, Game } from '../types';
 import { COLORS } from '../constants/theme';
@@ -16,9 +17,15 @@ export default function HomeScreen() {
   const { games, setGames } = useGameStore();
   const { playerId } = usePlayerStore();
 
-  useEffect(() => {
+  const refreshGames = useCallback(() => {
     api.getGames().then(setGames).catch(() => {});
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshGames();
+    }, [])
+  );
 
   const handleCreateGame = async () => {
     if (!playerId) return;
@@ -28,6 +35,19 @@ export default function HomeScreen() {
       navigation.navigate('Game', { gameId: game.id });
     } catch (err) {
       console.error('Failed to create game:', err);
+    }
+  };
+
+  const handleJoinGame = async (gameId: string) => {
+    if (!playerId) return;
+    try {
+      const { game } = await api.joinGame(gameId, playerId);
+      refreshGames();
+      if (game.status === 'active') {
+        navigation.navigate('Game', { gameId: game.id });
+      }
+    } catch (err: any) {
+      Alert.alert('Join Failed', err.message || 'Could not join game');
     }
   };
 
@@ -46,12 +66,16 @@ export default function HomeScreen() {
         renderSectionHeader={({ section }) => (
           <Text style={styles.sectionTitle}>{section.title}</Text>
         )}
-        renderItem={({ item }) => (
-          <GameCard
-            game={item}
-            onPress={() => navigation.navigate('Game', { gameId: item.id })}
-          />
-        )}
+        renderItem={({ item }) => {
+          const alreadyJoined = item.players.some((p) => p.playerId === playerId);
+          return (
+            <GameCard
+              game={item}
+              onPress={() => navigation.navigate('Game', { gameId: item.id })}
+              onJoin={item.status === 'lobby' && !alreadyJoined ? () => handleJoinGame(item.id) : undefined}
+            />
+          );
+        }}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={<Text style={styles.empty}>No games yet</Text>}
       />
