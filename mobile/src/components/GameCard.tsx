@@ -1,7 +1,8 @@
 import React from 'react';
-import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
+import { TouchableOpacity, View, Text, Image, StyleSheet } from 'react-native';
 import { Game } from '../types';
 import { COLORS } from '../constants/theme';
+import { UI_IMAGES } from '../assets';
 
 const STATUS_BADGE: Record<string, { bg: string; label: string }> = {
   active: { bg: COLORS.success, label: 'Active' },
@@ -29,11 +30,15 @@ export default function GameCard({ game, onPress, onJoin }: Props) {
         )}
       </View>
       <Text style={styles.title}>Game {game.id.split('-')[1]}</Text>
-      <Text style={styles.players}>
-        {'\u{1F464}'} {game.players.length}/{game.maxPlayers} players
-      </Text>
+      <View style={styles.inlineRow}>
+        <Image source={UI_IMAGES.playerCount} style={styles.inlineIcon} />
+        <Text style={styles.players}> {game.players.length}/{game.maxPlayers} players</Text>
+      </View>
       {game.winner && (
-        <Text style={styles.winner}>{'\u{1F3C6}'} Winner declared</Text>
+        <View style={styles.inlineRow}>
+          <Image source={UI_IMAGES.winner} style={styles.inlineIcon} />
+          <Text style={styles.winner}> Winner declared</Text>
+        </View>
       )}
       {game.status === 'lobby' && onJoin && (
         <TouchableOpacity style={styles.joinBtn} onPress={onJoin} activeOpacity={0.7}>
@@ -78,6 +83,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 4,
+  },
+  inlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inlineIcon: {
+    width: 16,
+    height: 16,
   },
   players: {
     color: COLORS.textSecondary,

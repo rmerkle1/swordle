@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useState } from 'react';
-import { View, Text, SectionList, TouchableOpacity, StyleSheet, Alert, RefreshControl } from 'react-native';
+import { View, Text, Image, SectionList, TouchableOpacity, StyleSheet, Alert, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -9,6 +9,7 @@ import { useGameStore } from '../store/gameStore';
 import { usePlayerStore } from '../store/playerStore';
 import { api } from '../services/api';
 import GameCard from '../components/GameCard';
+import { UI_IMAGES } from '../assets';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -69,7 +70,10 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>{'\u{2694}\uFE0F'} Swordle</Text>
+      <View style={styles.headingRow}>
+        <Image source={UI_IMAGES.logo} style={styles.headingLogo} />
+        <Text style={styles.heading}> Swordle</Text>
+      </View>
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
@@ -104,13 +108,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  headingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  headingLogo: {
+    width: 32,
+    height: 32,
+  },
   heading: {
     color: COLORS.text,
     fontSize: 28,
     fontWeight: 'bold',
-    textAlign: 'center',
-    marginTop: 16,
-    marginBottom: 8,
   },
   sectionTitle: {
     color: COLORS.textSecondary,

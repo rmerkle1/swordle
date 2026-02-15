@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { GamePlayer } from '../types';
 import { COLORS } from '../constants/theme';
+import { UI_IMAGES } from '../assets';
 
 interface Props {
   player: GamePlayer;
@@ -16,15 +17,24 @@ export default function PlayerStatsBar({ player, currentDay }: Props) {
         <Text style={styles.value}>{currentDay}</Text>
       </View>
       <View style={styles.stat}>
-        <Text style={styles.label}>{'\u{1FAB5}'} Wood</Text>
+        <View style={styles.labelRow}>
+          <Image source={UI_IMAGES.wood} style={styles.labelIcon} />
+          <Text style={styles.label}> Wood</Text>
+        </View>
         <Text style={styles.value}>{player.wood}</Text>
       </View>
       <View style={styles.stat}>
-        <Text style={styles.label}>{'\u{2699}\uFE0F'} Metal</Text>
+        <View style={styles.labelRow}>
+          <Image source={UI_IMAGES.metal} style={styles.labelIcon} />
+          <Text style={styles.label}> Metal</Text>
+        </View>
         <Text style={styles.value}>{player.metal}</Text>
       </View>
       <View style={styles.stat}>
-        <Text style={styles.label}>{'\u{2694}\uFE0F'} Tier</Text>
+        <View style={styles.labelRow}>
+          <Image source={UI_IMAGES.weapon} style={styles.labelIcon} />
+          <Text style={styles.label}> Tier</Text>
+        </View>
         <Text style={styles.value}>{player.weaponTier}</Text>
       </View>
     </View>
@@ -45,6 +55,14 @@ const styles = StyleSheet.create({
   stat: {
     flex: 1,
     alignItems: 'center',
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  labelIcon: {
+    width: 14,
+    height: 14,
   },
   label: {
     color: COLORS.textSecondary,

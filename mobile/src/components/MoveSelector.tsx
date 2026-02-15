@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { ActionType, BuildOption, TileType, GamePlayer } from '../types';
-import { COLORS, ACTION_EMOJI, BUILD_EMOJI, BUILD_COSTS, UPGRADE_COSTS } from '../constants/theme';
+import { COLORS, BUILD_COSTS, UPGRADE_COSTS } from '../constants/theme';
+import { ACTION_IMAGES, BUILD_IMAGES, UI_IMAGES } from '../assets';
 
 const ACTIONS: ActionType[] = ['attack', 'defend', 'collect', 'build', 'scout'];
 
@@ -53,7 +54,10 @@ export default function MoveSelector({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{isLocked ? '\u{1F512} Move Locked In' : 'Choose Action'}</Text>
+        <View style={styles.titleRow}>
+          {isLocked && <Image source={UI_IMAGES.lock} style={styles.inlineIcon} />}
+          <Text style={styles.title}>{isLocked ? ' Move Locked In' : 'Choose Action'}</Text>
+        </View>
         {!isLocked && (
           <TouchableOpacity onPress={onCancel}>
             <Text style={styles.cancelText}>Cancel</Text>
@@ -62,7 +66,10 @@ export default function MoveSelector({
       </View>
       {isStunned && (
         <View style={styles.stunnedBanner}>
-          <Text style={styles.stunnedText}>{'\u{1F4AB}'} Stunned — you can move but cannot act this turn</Text>
+          <View style={styles.stunnedRow}>
+            <Image source={UI_IMAGES.stunned} style={styles.inlineIcon} />
+            <Text style={styles.stunnedText}> Stunned — you can move but cannot act this turn</Text>
+          </View>
         </View>
       )}
       <View style={styles.actions}>
@@ -79,7 +86,7 @@ export default function MoveSelector({
               disabled={disabled}
               onPress={() => onSelectAction(action)}
             >
-              <Text style={styles.actionEmoji}>{ACTION_EMOJI[action]}</Text>
+              <Image source={ACTION_IMAGES[action]} style={styles.actionImage} />
               <Text style={[
                 styles.actionLabel,
                 selectedAction === action && styles.actionLabelSelected,
@@ -110,7 +117,7 @@ export default function MoveSelector({
                 disabled={!enabled || isLocked}
                 onPress={() => onSelectBuild(option)}
               >
-                <Text style={styles.buildEmoji}>{BUILD_EMOJI[option]}</Text>
+                <Image source={BUILD_IMAGES[option]} style={styles.buildImage} />
                 <View style={styles.buildInfo}>
                   <Text style={[
                     styles.buildLabel,
@@ -137,7 +144,10 @@ export default function MoveSelector({
 
       {isLocked ? (
         <View style={styles.lockedLabel}>
-          <Text style={styles.lockedLabelText}>{'\u2705'} Move Locked In</Text>
+          <View style={styles.lockedRow}>
+            <Image source={UI_IMAGES.checkmark} style={styles.inlineIcon} />
+            <Text style={styles.lockedLabelText}> Move Locked In</Text>
+          </View>
         </View>
       ) : (
         <TouchableOpacity
@@ -211,8 +221,9 @@ const styles = StyleSheet.create({
     borderColor: COLORS.gold,
     backgroundColor: 'rgba(240,192,64,0.15)',
   },
-  actionEmoji: {
-    fontSize: 24,
+  actionImage: {
+    width: 28,
+    height: 28,
     marginBottom: 4,
   },
   actionLabel: {
@@ -244,8 +255,9 @@ const styles = StyleSheet.create({
   buildDisabled: {
     opacity: 0.4,
   },
-  buildEmoji: {
-    fontSize: 20,
+  buildImage: {
+    width: 22,
+    height: 22,
     marginRight: 10,
   },
   buildInfo: {
@@ -296,5 +308,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  stunnedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lockedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineIcon: {
+    width: 16,
+    height: 16,
   },
 });

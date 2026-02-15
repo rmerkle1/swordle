@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { COLORS } from '../constants/theme';
 import { usePlayerStore } from '../store/playerStore';
+import { UI_IMAGES } from '../assets';
 
 export default function WelcomeScreen() {
   const [name, setName] = useState('');
@@ -32,7 +33,10 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{'\u{2694}\uFE0F'} Swordle</Text>
+      <View style={styles.titleRow}>
+        <Image source={UI_IMAGES.logo} style={styles.titleLogo} />
+        <Text style={styles.title}> Swordle</Text>
+      </View>
       <Text style={styles.subtitle}>Choose your name</Text>
 
       <TextInput
@@ -71,11 +75,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 32,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  titleLogo: {
+    width: 44,
+    height: 44,
+  },
   title: {
     color: COLORS.text,
     fontSize: 40,
     fontWeight: 'bold',
-    marginBottom: 8,
   },
   subtitle: {
     color: COLORS.textSecondary,

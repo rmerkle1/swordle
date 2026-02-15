@@ -1,7 +1,8 @@
 import React from 'react';
-import { TouchableOpacity, Text, View, StyleSheet } from 'react-native';
+import { TouchableOpacity, Text, View, Image, StyleSheet } from 'react-native';
 import { FoggedTile } from '../types';
 import { TILE_COLORS, COLORS } from '../constants/theme';
+import { TILE_IMAGES } from '../assets';
 
 const FOG_COLOR = '#0a0a1e';
 
@@ -63,17 +64,16 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
         isValidTarget && styles.validTarget,
       ]}
     >
-      {displayEmoji ? (
-        <Text
+      {displayType !== 'void' && (
+        <Image
+          source={TILE_IMAGES[displayType]}
           style={[
-            styles.emoji,
-            { fontSize: size * 0.4 },
-            visibility === 'fogged' && styles.fadedEmoji,
+            styles.tileImage,
+            { width: size, height: size },
+            visibility === 'fogged' && styles.fadedImage,
           ]}
-        >
-          {displayEmoji}
-        </Text>
-      ) : null}
+        />
+      )}
 
       {/* Full visibility: colored player dot */}
       {displayPlayer && displayPlayer.isAlive && !displayPlayer.isSilhouette && (
@@ -118,10 +118,10 @@ const styles = StyleSheet.create({
   validTarget: {
     backgroundColor: 'rgba(240,192,64,0.25)',
   },
-  emoji: {
+  tileImage: {
     position: 'absolute',
   },
-  fadedEmoji: {
+  fadedImage: {
     opacity: 0.5,
   },
   playerDot: {

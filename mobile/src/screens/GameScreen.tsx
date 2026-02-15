@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useCallback, useState, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, Image, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
@@ -12,6 +12,7 @@ import GameBoard from '../components/GameBoard';
 import PlayerStatsBar from '../components/PlayerStats';
 import MoveSelector from '../components/MoveSelector';
 import GameLog from '../components/GameLog';
+import { UI_IMAGES } from '../assets';
 
 type GameRoute = RouteProp<RootStackParamList, 'Game'>;
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -281,7 +282,10 @@ export default function GameScreen() {
     <View style={styles.container}>
       {showBanner && (
         <View style={styles.banner}>
-          <Text style={styles.bannerText}>{'\u2705'} Move submitted!</Text>
+          <View style={styles.bannerRow}>
+            <Image source={UI_IMAGES.checkmark} style={styles.bannerIcon} />
+            <Text style={styles.bannerText}> Move submitted!</Text>
+          </View>
         </View>
       )}
       {errorBanner && (
@@ -390,6 +394,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#555',
     padding: 10,
     alignItems: 'center',
+  },
+  bannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bannerIcon: {
+    width: 16,
+    height: 16,
   },
   bannerText: {
     color: '#fff',
