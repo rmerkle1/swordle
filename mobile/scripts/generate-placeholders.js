@@ -1,12 +1,14 @@
 /**
- * Generates 64x64 solid-color placeholder PNGs for all game asset slots.
+ * Generates solid-color placeholder PNGs for all game asset slots.
+ * Tiles: 128x128, actions/build/ui: 64x64.
  * Run once: node mobile/scripts/generate-placeholders.js
  */
 const { PNG } = require('pngjs');
 const fs = require('fs');
 const path = require('path');
 
-const SIZE = 128;
+const TILE_SIZE = 128;
+const ICON_SIZE = 64;
 
 function hexToRgb(hex) {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -15,13 +17,13 @@ function hexToRgb(hex) {
   return [r, g, b];
 }
 
-function createPng(color, outPath) {
+function createPng(color, outPath, size) {
   const [r, g, b] = hexToRgb(color);
-  const png = new PNG({ width: SIZE, height: SIZE });
+  const png = new PNG({ width: size, height: size });
 
-  for (let y = 0; y < SIZE; y++) {
-    for (let x = 0; x < SIZE; x++) {
-      const idx = (SIZE * y + x) << 2;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const idx = (size * y + x) << 2;
       png.data[idx] = r;
       png.data[idx + 1] = g;
       png.data[idx + 2] = b;
@@ -32,7 +34,7 @@ function createPng(color, outPath) {
   const buffer = PNG.sync.write(png);
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, buffer);
-  console.log(`  Created ${path.relative(assetsDir, outPath)}`);
+  console.log(`  Created ${path.relative(assetsDir, outPath)} (${size}x${size})`);
 }
 
 const assetsDir = path.join(__dirname, '..', 'src', 'assets');
@@ -80,24 +82,24 @@ const ui = {
 
 console.log('Generating placeholder PNGs...\n');
 
-console.log('Tiles:');
+console.log('Tiles (128x128):');
 for (const [name, color] of Object.entries(tiles)) {
-  createPng(color, path.join(assetsDir, 'tiles', `${name}.png`));
+  createPng(color, path.join(assetsDir, 'tiles', `${name}.png`), TILE_SIZE);
 }
 
-console.log('\nActions:');
+console.log('\nActions (64x64):');
 for (const [name, color] of Object.entries(actions)) {
-  createPng(color, path.join(assetsDir, 'actions', `${name}.png`));
+  createPng(color, path.join(assetsDir, 'actions', `${name}.png`), ICON_SIZE);
 }
 
-console.log('\nBuild:');
+console.log('\nBuild (64x64):');
 for (const [name, color] of Object.entries(build)) {
-  createPng(color, path.join(assetsDir, 'build', `${name}.png`));
+  createPng(color, path.join(assetsDir, 'build', `${name}.png`), ICON_SIZE);
 }
 
-console.log('\nUI:');
+console.log('\nUI (64x64):');
 for (const [name, color] of Object.entries(ui)) {
-  createPng(color, path.join(assetsDir, 'ui', `${name}.png`));
+  createPng(color, path.join(assetsDir, 'ui', `${name}.png`), ICON_SIZE);
 }
 
 console.log('\nDone! Generated 25 placeholder PNGs.');
