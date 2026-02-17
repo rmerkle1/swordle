@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, ScrollView, useWindowDimensions, StyleSheet } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { FoggedTile } from '../types';
@@ -18,13 +18,59 @@ const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 2.5;
 
 export default function GameBoard({ foggedTiles, boardSize, selectedTile, lockedTile, validTargets, onTilePress }: Props) {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [zoom, setZoom] = useState(1);
   const zoomBase = useRef(1);
+  const hScrollRef = useRef<ScrollView>(null);
+  const vScrollRef = useRef<ScrollView>(null);
+  const hasCentered = useRef(false);
 
   const baseTileSize = Math.floor((width - BOARD_PADDING * 2) / boardSize);
   const tileSize = Math.floor(baseTileSize * zoom);
   const gridWidth = tileSize * boardSize;
+  const gridHeight = tileSize * boardSize;
+
+  // Calculate center of visible (non-void) tiles
+  const visibleCenter = useMemo(() => {
+    const visible = foggedTiles.filter((ft) => ft.displayType !== 'void' && ft.visibility !== 'hidden');
+    if (visible.length === 0) return null;
+
+    let minCol = boardSize, maxCol = 0, minRow = boardSize, maxRow = 0;
+    for (const ft of visible) {
+      const col = ft.index % boardSize;
+      const row = Math.floor(ft.index / boardSize);
+      if (col < minCol) minCol = col;
+      if (col > maxCol) maxCol = col;
+      if (row < minRow) minRow = row;
+      if (row > maxRow) maxRow = row;
+    }
+
+    return {
+      col: (minCol + maxCol) / 2,
+      row: (minRow + maxRow) / 2,
+    };
+  }, [foggedTiles, boardSize]);
+
+  // Center the scroll on visible tiles on first render
+  useEffect(() => {
+    if (hasCentered.current || !visibleCenter) return;
+    hasCentered.current = true;
+
+    const viewportWidth = width - 8; // marginHorizontal: 4 * 2
+    const viewportHeight = height * 0.5; // approximate board viewport height
+
+    const centerX = visibleCenter.col * tileSize + tileSize / 2;
+    const centerY = visibleCenter.row * tileSize + tileSize / 2;
+
+    const offsetX = Math.max(0, centerX - viewportWidth / 2);
+    const offsetY = Math.max(0, centerY - viewportHeight / 2);
+
+    // Use setTimeout to ensure ScrollViews are laid out
+    setTimeout(() => {
+      hScrollRef.current?.scrollTo({ x: offsetX, animated: false });
+      vScrollRef.current?.scrollTo({ y: offsetY, animated: false });
+    }, 50);
+  }, [visibleCenter, tileSize, width, height]);
 
   const pinchGesture = Gesture.Pinch()
     .runOnJS(true)
@@ -40,11 +86,13 @@ export default function GameBoard({ foggedTiles, boardSize, selectedTile, locked
       <GestureDetector gesture={pinchGesture}>
         <View style={{ flex: 1 }}>
           <ScrollView
+            ref={hScrollRef}
             horizontal
             contentContainerStyle={styles.scrollOuter}
             showsHorizontalScrollIndicator={false}
           >
             <ScrollView
+              ref={vScrollRef}
               contentContainerStyle={styles.scrollInner}
               showsVerticalScrollIndicator={false}
               nestedScrollEnabled

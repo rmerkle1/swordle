@@ -76,6 +76,23 @@ export default function GameScreen() {
     );
   }, [myPlayer?.position, currentGame?.currentDay]);
 
+  // Restore pending move from backend when entering the game
+  useEffect(() => {
+    if (!currentGame || !myPlayer || currentGame.status !== 'active') return;
+    if (submittedMove && submittedMove.day === currentGame.currentDay) return;
+
+    api.getPendingMove(currentGame.id, myPlayer.id).then(({ pendingMove }) => {
+      if (pendingMove && pendingMove.day === currentGame.currentDay) {
+        setSubmittedMove({
+          toTile: pendingMove.toTile,
+          action: pendingMove.action as any,
+          buildOption: (pendingMove.buildOption as any) || null,
+          day: pendingMove.day,
+        });
+      }
+    }).catch(() => {});
+  }, [currentGame?.id, myPlayer?.id, currentGame?.status]);
+
   // Auto-expire submitted move when day changes
   useEffect(() => {
     if (submittedMove && currentGame && submittedMove.day !== currentGame.currentDay) {

@@ -64,4 +64,8 @@ export const api = {
       body: JSON.stringify({ playerId }),
     });
   },
+
+  async getPendingMove(gameId: string, gamePlayerId: string): Promise<{ pendingMove: { toTile: number; action: string; buildOption: string | null; day: number } | null }> {
+    return fetchJson(`${API_BASE}/games/${gameId}/moves/pending/${gamePlayerId}`);
+  },
 };

@@ -74,7 +74,8 @@ export default function MoveSelector({
       )}
       <View style={styles.actions}>
         {ACTIONS.map((action) => {
-          const disabled = isStunned || isLocked;
+          const canCollect = targetTileType === 'forest' || targetTileType === 'mountain';
+          const disabled = isStunned || isLocked || (action === 'collect' && !canCollect);
           return (
             <TouchableOpacity
               key={action}

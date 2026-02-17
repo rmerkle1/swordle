@@ -96,6 +96,16 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
       {visibility === 'partial' && (
         <View style={styles.partialOverlay} pointerEvents="none" />
       )}
+
+      {/* Selection overlay — renders on top of image */}
+      {isSelected && (
+        <View style={styles.selectedOverlay} pointerEvents="none" />
+      )}
+
+      {/* Locked move overlay — renders on top of image */}
+      {isLocked && (
+        <View style={styles.lockedOverlay} pointerEvents="none" />
+      )}
     </TouchableOpacity>
   );
 }
@@ -154,5 +164,17 @@ const styles = StyleSheet.create({
   partialOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(10,10,30,0.15)',
+  },
+  selectedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 3,
+    borderColor: COLORS.gold,
+    backgroundColor: 'rgba(240,192,64,0.2)',
+  },
+  lockedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 3,
+    borderColor: COLORS.success,
+    backgroundColor: 'rgba(46,204,113,0.2)',
   },
 });
