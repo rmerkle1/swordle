@@ -1,17 +1,30 @@
-import React, { useCallback } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { COLORS } from '../constants/theme';
 import { usePlayerStore } from '../store/playerStore';
+import { truncateAddress } from '../utils/wallet';
 
 export default function ProfileScreen() {
-  const { playerName, playerId, stats, refreshStats } = usePlayerStore();
+  const { playerName, playerId, walletAddress, stats, refreshStats, disconnectWallet } = usePlayerStore();
+  const [disconnecting, setDisconnecting] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       refreshStats();
     }, [])
   );
+
+  const handleDisconnect = async () => {
+    setDisconnecting(true);
+    try {
+      await disconnectWallet();
+    } catch {
+      // state is cleared regardless
+    } finally {
+      setDisconnecting(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -20,6 +33,9 @@ export default function ProfileScreen() {
           <Text style={styles.avatarText}>{playerName.charAt(0).toUpperCase()}</Text>
         </View>
         <Text style={styles.name}>{playerName}</Text>
+        {walletAddress ? (
+          <Text style={styles.wallet}>{truncateAddress(walletAddress)}</Text>
+        ) : null}
         <Text style={styles.id}>{playerId}</Text>
       </View>
 
@@ -41,6 +57,18 @@ export default function ProfileScreen() {
           <Text style={styles.statLabel}>Eliminations</Text>
         </View>
       </View>
+
+      <TouchableOpacity
+        style={[styles.disconnectButton, disconnecting && styles.buttonDisabled]}
+        onPress={handleDisconnect}
+        disabled={disconnecting}
+      >
+        {disconnecting ? (
+          <ActivityIndicator color={COLORS.error} />
+        ) : (
+          <Text style={styles.disconnectText}>Disconnect Wallet</Text>
+        )}
+      </TouchableOpacity>
     </View>
   );
 }
@@ -77,6 +105,12 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
   },
+  wallet: {
+    color: COLORS.accent,
+    fontSize: 13,
+    fontFamily: 'monospace',
+    marginTop: 4,
+  },
   id: {
     color: COLORS.textSecondary,
     fontSize: 12,
@@ -104,5 +138,21 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontSize: 12,
     marginTop: 4,
+  },
+  disconnectButton: {
+    marginTop: 24,
+    borderWidth: 1,
+    borderColor: COLORS.error,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  disconnectText: {
+    color: COLORS.error,
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

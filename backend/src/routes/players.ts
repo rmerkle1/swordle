@@ -4,29 +4,66 @@ import { PlayerStats } from '../types';
 
 const router = Router();
 
-// POST / — register player
+// POST / — register or upsert player with real wallet pubkey
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { name } = req.body;
+    const { name, pubkey } = req.body;
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       res.status(400).json({ error: 'name is required' });
       return;
     }
+    if (!pubkey || typeof pubkey !== 'string' || pubkey.trim().length === 0) {
+      res.status(400).json({ error: 'pubkey is required' });
+      return;
+    }
 
-    const pubkey = `player_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
+    // Upsert: if pubkey already exists, update the username and return existing player
     const playerRes = await query(
-      `INSERT INTO players (pubkey, username) VALUES ($1, $2) RETURNING *`,
-      [pubkey, name.trim()]
+      `INSERT INTO players (pubkey, username) VALUES ($1, $2)
+       ON CONFLICT (pubkey) DO UPDATE SET username = EXCLUDED.username
+       RETURNING *`,
+      [pubkey.trim(), name.trim()]
     );
     const player = playerRes.rows[0];
 
+    // Ensure player_stats row exists
     await query(
-      `INSERT INTO player_stats (player_id) VALUES ($1)`,
+      `INSERT INTO player_stats (player_id) VALUES ($1) ON CONFLICT DO NOTHING`,
       [player.id]
     );
 
     res.status(201).json({
+      id: String(player.id),
+      name: player.username,
+      pubkey: player.pubkey,
+    });
+  } catch (err: any) {
+    console.error('Players route error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /login — look up player by pubkey
+router.post('/login', async (req: Request, res: Response) => {
+  try {
+    const { pubkey } = req.body;
+    if (!pubkey || typeof pubkey !== 'string' || pubkey.trim().length === 0) {
+      res.status(400).json({ error: 'pubkey is required' });
+      return;
+    }
+
+    const playerRes = await query(
+      `SELECT * FROM players WHERE pubkey = $1`,
+      [pubkey.trim()]
+    );
+
+    if (playerRes.rows.length === 0) {
+      res.status(404).json({ error: 'Player not found' });
+      return;
+    }
+
+    const player = playerRes.rows[0];
+    res.json({
       id: String(player.id),
       name: player.username,
       pubkey: player.pubkey,

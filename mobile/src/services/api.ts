@@ -37,11 +37,22 @@ export const api = {
     return fetchJson<PlayerStats>(`${API_BASE}/players/${playerId}/stats`);
   },
 
-  async registerPlayer(name: string): Promise<{ id: string; name: string; pubkey: string }> {
+  async registerPlayer(name: string, pubkey: string): Promise<{ id: string; name: string; pubkey: string }> {
     return fetchJson<{ id: string; name: string; pubkey: string }>(`${API_BASE}/players`, {
       method: 'POST',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, pubkey }),
     });
+  },
+
+  async loginWithWallet(pubkey: string): Promise<{ id: string; name: string; pubkey: string } | null> {
+    try {
+      return await fetchJson<{ id: string; name: string; pubkey: string }>(`${API_BASE}/players/login`, {
+        method: 'POST',
+        body: JSON.stringify({ pubkey }),
+      });
+    } catch {
+      return null;
+    }
   },
 
   async createGame(maxPlayers: number, creatorId: string): Promise<Game> {

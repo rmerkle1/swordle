@@ -1,3 +1,14 @@
+// Polyfills must be imported before any Solana / crypto code
+import { getRandomValues as expoCryptoGetRandomValues } from 'expo-crypto';
+import { Buffer } from 'buffer';
+global.Buffer = Buffer;
+if (typeof globalThis.crypto === 'undefined') {
+  globalThis.crypto = {} as Crypto;
+}
+if (!globalThis.crypto.getRandomValues) {
+  globalThis.crypto.getRandomValues = expoCryptoGetRandomValues as any;
+}
+
 import React from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
