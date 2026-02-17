@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { GameEvent } from '../types';
 import { COLORS } from '../constants/theme';
 
@@ -13,12 +13,9 @@ export default function GameLog({ events }: Props) {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Game Log</Text>
-      <FlatList
-        data={reversed}
-        keyExtractor={(item) => item.id}
-        style={styles.list}
-        renderItem={({ item }) => (
-          <View style={styles.row}>
+      <ScrollView style={styles.list} nestedScrollEnabled>
+        {reversed.map((item) => (
+          <View key={item.id} style={styles.row}>
             <View style={styles.dayBadge}>
               <Text style={styles.dayText}>D{item.day}</Text>
             </View>
@@ -29,8 +26,8 @@ export default function GameLog({ events }: Props) {
               {item.playerName ? item.message.replace(`${item.playerName} `, '') : item.message}
             </Text>
           </View>
-        )}
-      />
+        ))}
+      </ScrollView>
     </View>
   );
 }

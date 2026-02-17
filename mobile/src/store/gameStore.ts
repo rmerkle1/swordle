@@ -40,14 +40,21 @@ export const useGameStore = create<GameState>((set) => ({
   submittedMove: null,
 
   setGames: (games) => set({ games }),
-  setCurrentGame: (game) => set({
-    currentGame: game,
-    selectedTile: null,
-    pendingAction: null,
-    buildOption: null,
-    tileMemory: new Map(),
-    myTraps: new Set(),
-    submittedMove: null,
+  setCurrentGame: (game) => set((state) => {
+    // When clearing the game or loading a different game, reset all state
+    if (!game || (state.currentGame && state.currentGame.id !== game.id)) {
+      return {
+        currentGame: game,
+        selectedTile: null,
+        pendingAction: null,
+        buildOption: null,
+        tileMemory: new Map(),
+        myTraps: new Set(),
+        submittedMove: null,
+      };
+    }
+    // Polling update for the same game — preserve user interaction state
+    return { currentGame: game };
   }),
   selectTile: (tileIndex) => set({ selectedTile: tileIndex, pendingAction: null, buildOption: null }),
   setPendingAction: (action) => set({ pendingAction: action, buildOption: action === 'build' ? null : null }),
