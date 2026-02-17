@@ -1,3 +1,4 @@
+import 'expo-dev-client';
 // Polyfills must be imported before any Solana / crypto code
 import { getRandomValues as expoCryptoGetRandomValues } from 'expo-crypto';
 import { Buffer } from 'buffer';

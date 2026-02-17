@@ -21,7 +21,17 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a1a2e"
       },
-      "package": "com.swordle.app"
+      "package": "com.swordle.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": ["DEFAULT", "BROWSABLE"],
+          "data": {
+            "scheme": "https",
+            "host": "swordle.app"
+          }
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/icon.png"
