@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { query } from '../config/database';
 import { getAdjacentTiles, processDay, getFullGame } from '../services/gameEngine';
+import { emitGameUpdate, emitGamesList } from '../socket';
 
 const router = Router({ mergeParams: true });
 
@@ -179,6 +180,8 @@ router.post('/', async (req: Request, res: Response) => {
     if (submittedMovesRes.rows.length >= alivePlayersRes.rows.length) {
       try {
         await processDay(gameId);
+        emitGameUpdate(gameId);
+        emitGamesList();
       } catch (processErr: any) {
         console.error('Auto process-day failed:', processErr.message);
       }

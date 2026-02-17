@@ -8,6 +8,7 @@ import { COLORS } from '../constants/theme';
 import { useGameStore } from '../store/gameStore';
 import { usePlayerStore } from '../store/playerStore';
 import { api } from '../services/api';
+import { connectSocket, onGamesList } from '../services/socket';
 import GameCard from '../components/GameCard';
 import { UI_IMAGES } from '../assets';
 
@@ -35,6 +36,13 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshGames();
+      const socket = connectSocket();
+      const unsubscribe = onGamesList((games) => {
+        setGames(games);
+      });
+      return () => {
+        unsubscribe();
+      };
     }, [])
   );
 

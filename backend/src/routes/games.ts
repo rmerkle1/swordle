@@ -3,6 +3,7 @@ import { query } from '../config/database';
 import { generateMap, randomSpawnPositions, seededRandom } from '../services/mapGenerator';
 import { getFullGame } from '../services/gameEngine';
 import { Game } from '../types';
+import { emitGameUpdate, emitGamesList } from '../socket';
 
 const router = Router();
 
@@ -99,6 +100,7 @@ router.post('/', async (req: Request, res: Response) => {
     );
 
     const game = await getFullGame(gameId);
+    emitGamesList();
     res.status(201).json(game);
   } catch (err: any) {
     console.error('Games route error:', err.message);
@@ -208,6 +210,8 @@ router.post('/:id/join', async (req: Request, res: Response) => {
     }
 
     const game = await getFullGame(gameId);
+    emitGameUpdate(gameId);
+    emitGamesList();
     res.json({ success: true, game });
   } catch (err: any) {
     console.error('Games route error:', err.message);
@@ -256,6 +260,8 @@ router.post('/:id/leave', async (req: Request, res: Response) => {
         'UPDATE games SET current_players = current_players - 1 WHERE id = $1',
         [gameId]
       );
+      emitGameUpdate(gameId);
+      emitGamesList();
       res.json({ success: true });
     } else if (gameRow.status === 'active') {
       if (gp.status !== 'active') {
@@ -286,6 +292,8 @@ router.post('/:id/leave', async (req: Request, res: Response) => {
         );
       }
       const game = await getFullGame(gameId);
+      emitGameUpdate(gameId);
+      emitGamesList();
       res.json({ success: true, game });
     } else {
       res.status(400).json({ error: 'Cannot leave a completed game' });

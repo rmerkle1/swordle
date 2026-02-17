@@ -1,16 +1,32 @@
+import http from 'http';
 import express from 'express';
 import cors from 'cors';
+import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import { testConnection, query } from './config/database';
 import gamesRouter from './routes/games';
 import movesRouter from './routes/moves';
 import playersRouter from './routes/players';
 import adminRouter from './routes/admin';
+import { setIO } from './socket';
 
 dotenv.config();
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
+
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: '*' } });
+setIO(io);
+
+io.on('connection', (socket) => {
+  socket.on('join:game', (gameId) => {
+    socket.join(`game:${gameId}`);
+  });
+  socket.on('leave:game', (gameId) => {
+    socket.leave(`game:${gameId}`);
+  });
+});
 
 app.use(cors());
 app.use(express.json());
@@ -51,7 +67,7 @@ async function cleanupStaleLobbies() {
 async function start() {
   try {
     await testConnection();
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
     await cleanupStaleLobbies();

@@ -7,6 +7,7 @@ import { COLORS } from '../constants/theme';
 import { useGameStore, getAdjacentTiles } from '../store/gameStore';
 import { usePlayerStore } from '../store/playerStore';
 import { api } from '../services/api';
+import { connectSocket, joinGame as socketJoinGame, leaveGame as socketLeaveGame, onGameUpdate } from '../services/socket';
 import { computeFoggedBoard } from '../utils/fogOfWar';
 import GameBoard from '../components/GameBoard';
 import PlayerStatsBar from '../components/PlayerStats';
@@ -17,7 +18,7 @@ import { UI_IMAGES } from '../assets';
 type GameRoute = RouteProp<RootStackParamList, 'Game'>;
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-const POLL_INTERVAL = 5000;
+const POLL_INTERVAL = 30000;
 
 export default function GameScreen() {
   const route = useRoute<GameRoute>();
@@ -57,8 +58,19 @@ export default function GameScreen() {
     };
     fetchGame();
     pollRef.current = setInterval(fetchGame, POLL_INTERVAL);
+
+    // Socket.io real-time updates
+    const socket = connectSocket();
+    socketJoinGame(route.params.gameId);
+    const unsubscribe = onGameUpdate((game) => {
+      setCurrentGame(game);
+      setLoadError(false);
+    });
+
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      socketLeaveGame(route.params.gameId);
+      unsubscribe();
       setCurrentGame(null);
     };
   }, [route.params.gameId]);
