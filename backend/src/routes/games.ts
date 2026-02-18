@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../config/database';
 import { generateMap, randomSpawnPositions, seededRandom } from '../services/mapGenerator';
-import { getFullGame } from '../services/gameEngine';
+import { getFullGame, getFilteredGame } from '../services/gameEngine';
 import { Game } from '../types';
 import { emitGameUpdate, emitGamesList } from '../socket';
 
@@ -25,7 +25,7 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 });
 
-// GET /:id — single game
+// GET /:id — single game (optional ?playerId=X for fog-of-war filtering)
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const gameId = parseInt(req.params.id, 10);
@@ -33,7 +33,8 @@ router.get('/:id', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Invalid game ID' });
       return;
     }
-    const game = await getFullGame(gameId);
+    const playerIdParam = req.query.playerId ? parseInt(String(req.query.playerId), 10) : undefined;
+    const game = playerIdParam ? await getFilteredGame(gameId, playerIdParam) : await getFullGame(gameId);
     res.json(game);
   } catch (err: any) {
     if (err.message === 'Game not found') {
@@ -48,7 +49,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 // POST / — create game
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { maxPlayers = 4, creatorId } = req.body;
+    const { maxPlayers = 4, creatorId, moveDeadlineHour } = req.body;
     if (!creatorId) {
       res.status(400).json({ error: 'creatorId is required' });
       return;
@@ -67,11 +68,15 @@ router.post('/', async (req: Request, res: Response) => {
     const { tiles, gridSize } = generateMap(maxPlayers, seed);
     const mapSize = gridSize * gridSize;
 
+    // Validate deadline hour
+    const deadlineHour = moveDeadlineHour != null ? parseInt(moveDeadlineHour, 10) : 0;
+    const validDeadline = !isNaN(deadlineHour) && deadlineHour >= 0 && deadlineHour <= 23 ? deadlineHour : 0;
+
     // Create game
     const gameRes = await query(
-      `INSERT INTO games (creator_pubkey, max_players, current_players, map_size, status)
-       VALUES ($1, $2, 1, $3, 'lobby') RETURNING *`,
-      [player.pubkey, maxPlayers, mapSize]
+      `INSERT INTO games (creator_pubkey, max_players, current_players, map_size, status, move_deadline_utc_hour)
+       VALUES ($1, $2, 1, $3, 'lobby', $4) RETURNING *`,
+      [player.pubkey, maxPlayers, mapSize, validDeadline]
     );
     const gameId = gameRes.rows[0].id;
 

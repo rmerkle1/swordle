@@ -40,13 +40,25 @@ export default function GameScreen() {
     updateTileMemory, addMyTrap,
   } = useGameStore();
 
+  const [myGamePlayerId, setMyGamePlayerId] = useState<string | null>(null);
+
   useEffect(() => {
     let isInitial = true;
-    const fetchGame = () => {
-      api.getGame(route.params.gameId).then((g) => {
+    const fetchGame = (gpId?: string | null) => {
+      api.getGame(route.params.gameId, gpId || undefined).then((g) => {
         if (g) {
           setCurrentGame(g);
           setLoadError(false);
+          // Discover myPlayer's gamePlayerId on first fetch
+          if (!gpId) {
+            const me = g.players.find((p) => p.playerId === playerId);
+            if (me) {
+              setMyGamePlayerId(me.id);
+              // Re-join socket with player identity for filtered updates
+              socketLeaveGame(route.params.gameId);
+              socketJoinGame(route.params.gameId, me.id);
+            }
+          }
         } else if (isInitial) {
           setLoadError(true);
         }
@@ -57,7 +69,7 @@ export default function GameScreen() {
       });
     };
     fetchGame();
-    pollRef.current = setInterval(fetchGame, POLL_INTERVAL);
+    pollRef.current = setInterval(() => fetchGame(myGamePlayerId), POLL_INTERVAL);
 
     // Socket.io real-time updates
     const socket = connectSocket();
@@ -73,7 +85,24 @@ export default function GameScreen() {
       unsubscribe();
       setCurrentGame(null);
     };
-  }, [route.params.gameId]);
+  }, [route.params.gameId, playerId]);
+
+  // Update poll interval when myGamePlayerId changes
+  useEffect(() => {
+    if (!myGamePlayerId) return;
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => {
+      api.getGame(route.params.gameId, myGamePlayerId || undefined).then((g) => {
+        if (g) {
+          setCurrentGame(g);
+          setLoadError(false);
+        }
+      }).catch(() => {});
+    }, POLL_INTERVAL);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [myGamePlayerId, route.params.gameId]);
 
   const myPlayer = currentGame?.players.find((p) => p.playerId === playerId);
 

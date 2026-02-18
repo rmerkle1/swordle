@@ -49,7 +49,7 @@ export function computeFoggedBoard(
 ): FoggedTile[] {
   const playerMap = new Map<number, GamePlayer>();
   for (const p of players) {
-    if (p.isAlive) playerMap.set(p.position, p);
+    if (p.isAlive && p.position >= 0) playerMap.set(p.position, p);
   }
 
   return tiles.map((tile) => {

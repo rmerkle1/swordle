@@ -43,27 +43,26 @@ router.post('/process-day', async (req: Request, res: Response) => {
       return;
     }
 
-    // Check all alive players submitted moves
+    // Auto-submit defend-in-place for missing players
     const nextDay = game.current_day + 1;
-    const activePlayersRes = await query(
-      `SELECT COUNT(*) as count FROM game_players WHERE game_id = $1 AND status = 'active'`,
-      [id]
-    );
-    const submittedMovesRes = await query(
-      `SELECT COUNT(*) as count FROM moves WHERE game_id = $1 AND day = $2`,
+    const missingRes = await query(
+      `SELECT gp.id, gp.current_position
+       FROM game_players gp
+       WHERE gp.game_id = $1 AND gp.status = 'active'
+         AND gp.id NOT IN (
+           SELECT m.game_player_id FROM moves m
+           WHERE m.game_id = $1 AND m.day = $2
+         )`,
       [id, nextDay]
     );
 
-    const activePlayers = parseInt(activePlayersRes.rows[0].count, 10);
-    const submittedMoves = parseInt(submittedMovesRes.rows[0].count, 10);
-
-    if (submittedMoves < activePlayers) {
-      res.status(400).json({
-        error: 'Not all players have submitted moves',
-        activePlayers,
-        submittedMoves,
-      });
-      return;
+    for (const player of missingRes.rows) {
+      await query(
+        `INSERT INTO moves (game_id, game_player_id, day, destination, action, build_option)
+         VALUES ($1, $2, $3, $4, 'defend', NULL)
+         ON CONFLICT (game_id, game_player_id, day) DO NOTHING`,
+        [id, player.id, nextDay, player.current_position]
+      );
     }
 
     const updatedGame = await processDay(id);

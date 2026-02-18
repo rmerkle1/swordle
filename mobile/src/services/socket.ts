@@ -29,8 +29,12 @@ export function getSocket(): Socket | null {
   return socket;
 }
 
-export function joinGame(gameId: string | number) {
-  socket?.emit('join:game', gameId);
+export function joinGame(gameId: string | number, gamePlayerId?: string | number) {
+  if (gamePlayerId) {
+    socket?.emit('join:game', { gameId, gamePlayerId: Number(gamePlayerId) });
+  } else {
+    socket?.emit('join:game', gameId);
+  }
 }
 
 export function leaveGame(gameId: string | number) {

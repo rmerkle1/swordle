@@ -1,6 +1,14 @@
 import { query, pool } from '../config/database';
 import { Game, GamePlayer, GameEvent, MapTile, TileType, ActionType, BuildOption } from '../types';
 
+function chebyshevDistance(index1: number, index2: number, boardSize: number): number {
+  const x1 = index1 % boardSize;
+  const y1 = Math.floor(index1 / boardSize);
+  const x2 = index2 % boardSize;
+  const y2 = Math.floor(index2 / boardSize);
+  return Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2));
+}
+
 const STORM_START_DAY = 5;
 const STORM_MIN_TILES = 4;
 
@@ -120,6 +128,21 @@ export function resolveMoves(
           });
         }
       }
+    }
+  }
+
+  // --- 1b) Check for blocked destinations (wall/storm/void/water built since submission) ---
+  const blockedTileTypes = new Set<string>(['void', 'water', 'storm', 'wall']);
+  for (const move of moves) {
+    if (bumpedBack.has(move.playerId)) continue;
+    const destTile = updatedTiles[move.toTile];
+    if (destTile && blockedTileTypes.has(destTile.type)) {
+      bumpedBack.add(move.playerId);
+      events.push({
+        id: `ev-${day}-${eventId++}`, day,
+        message: `${move.playerName} can't move to a ${destTile.type} tile — blocked!`,
+        playerId: move.playerId, playerName: move.playerName, playerColor: move.playerColor,
+      });
     }
   }
 
@@ -669,4 +692,40 @@ export async function getFullGame(gameId: number): Promise<Game> {
     events,
     winner: winnerGpRes && winnerGpRes.rows.length > 0 ? String(winnerGpRes.rows[0].id) : undefined,
   };
+}
+
+export async function getFilteredGame(gameId: number, gamePlayerId?: number): Promise<Game> {
+  const game = await getFullGame(gameId);
+
+  // No filtering for non-active games or if no player specified
+  if (!gamePlayerId || game.status !== 'active') return game;
+
+  const requester = game.players.find((p) => String(p.id) === String(gamePlayerId));
+  // If requester not found or eliminated, return unfiltered (spectator mode)
+  if (!requester || !requester.isAlive) return game;
+
+  const myPos = requester.position;
+
+  // Filter player positions: hide players beyond Chebyshev distance 2
+  const filteredPlayers = game.players.map((p) => {
+    if (p.id === requester.id) return p;
+    if (!p.isAlive) return p;
+    const dist = chebyshevDistance(p.position, myPos, game.boardSize);
+    if (dist > 2) {
+      return { ...p, position: -1 };
+    }
+    return p;
+  });
+
+  // Filter tiles: enemy traps outside distance 1 show as 'empty'
+  const filteredTiles = game.tiles.map((t) => {
+    if (t.type !== 'trap') return t;
+    const dist = chebyshevDistance(t.index, myPos, game.boardSize);
+    if (dist > 1) {
+      return { ...t, type: 'empty' as TileType };
+    }
+    return t;
+  });
+
+  return { ...game, players: filteredPlayers, tiles: filteredTiles };
 }

@@ -18,9 +18,12 @@ export const api = {
     return fetchJson<Game[]>(`${API_BASE}/games`);
   },
 
-  async getGame(gameId: string): Promise<Game | undefined> {
+  async getGame(gameId: string, gamePlayerId?: string): Promise<Game | undefined> {
     try {
-      return await fetchJson<Game>(`${API_BASE}/games/${gameId}`);
+      const url = gamePlayerId
+        ? `${API_BASE}/games/${gameId}?playerId=${gamePlayerId}`
+        : `${API_BASE}/games/${gameId}`;
+      return await fetchJson<Game>(url);
     } catch {
       return undefined;
     }

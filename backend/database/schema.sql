@@ -20,8 +20,10 @@ CREATE TABLE IF NOT EXISTS games (
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
     winner_pubkey VARCHAR(100),
+    move_deadline_utc_hour SMALLINT NOT NULL DEFAULT 0, -- 0-23, hour in UTC when moves auto-process
 
     CHECK (max_players >= 2 AND max_players <= 16),
+    CHECK (move_deadline_utc_hour >= 0 AND move_deadline_utc_hour <= 23),
     CHECK (status IN ('lobby', 'active', 'completed'))
 );
 

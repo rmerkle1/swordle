@@ -8,7 +8,8 @@ import gamesRouter from './routes/games';
 import movesRouter from './routes/moves';
 import playersRouter from './routes/players';
 import adminRouter from './routes/admin';
-import { setIO } from './socket';
+import { setIO, socketPlayerMap } from './socket';
+import { processExpiredDeadlines } from './services/deadlineProcessor';
 
 dotenv.config();
 
@@ -20,11 +21,28 @@ const io = new Server(server, { cors: { origin: '*' } });
 setIO(io);
 
 io.on('connection', (socket) => {
-  socket.on('join:game', (gameId) => {
+  socket.on('join:game', (data) => {
+    // Backward-compatible: accept object { gameId, gamePlayerId } or raw gameId
+    let gameId: number | string;
+    let gamePlayerId: number | undefined;
+    if (typeof data === 'object' && data !== null && data.gameId != null) {
+      gameId = data.gameId;
+      gamePlayerId = data.gamePlayerId ? Number(data.gamePlayerId) : undefined;
+    } else {
+      gameId = data;
+    }
     socket.join(`game:${gameId}`);
+    if (gamePlayerId) {
+      socketPlayerMap.set(socket.id, { gameId: Number(gameId), gamePlayerId });
+    }
   });
-  socket.on('leave:game', (gameId) => {
+  socket.on('leave:game', (data) => {
+    const gameId = typeof data === 'object' && data !== null ? data.gameId : data;
     socket.leave(`game:${gameId}`);
+    socketPlayerMap.delete(socket.id);
+  });
+  socket.on('disconnect', () => {
+    socketPlayerMap.delete(socket.id);
   });
 });
 
@@ -72,6 +90,9 @@ async function start() {
     });
     await cleanupStaleLobbies();
     setInterval(cleanupStaleLobbies, CLEANUP_INTERVAL_MS);
+
+    // Check for expired move deadlines every 60 seconds
+    setInterval(processExpiredDeadlines, 60_000);
   } catch (err) {
     console.error('Failed to start server:', err);
     process.exit(1);
