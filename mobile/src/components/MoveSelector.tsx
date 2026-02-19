@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
-import { ActionType, BuildOption, TileType, GamePlayer } from '../types';
+import { ActionType, BuildOption, TileType, GamePlayer, FighterClass } from '../types';
 import { COLORS, BUILD_COSTS, UPGRADE_COSTS } from '../constants/theme';
 import { ACTION_IMAGES, BUILD_IMAGES, UI_IMAGES } from '../assets';
 
@@ -14,10 +14,15 @@ interface Props {
   isLocked?: boolean;
   targetTileType: TileType;
   player: GamePlayer;
+  fighterClass: FighterClass;
+  attackTarget: number | null;
   onSelectAction: (action: ActionType) => void;
   onSelectBuild: (option: BuildOption) => void;
   onSubmit: () => void;
   onCancel: () => void;
+  onChangeMoveRequest?: () => void;
+  onRequestTarget?: () => void;
+  onClearTarget?: () => void;
 }
 
 function getCollectLabel(tileType: TileType): string {
@@ -31,9 +36,12 @@ const BUILD_OPTIONS: BuildOption[] = ['wall', 'trap', 'upgrade'];
 export default function MoveSelector({
   selectedAction, buildOption, isSubmitting, isStunned,
   isLocked = false,
-  targetTileType, player,
+  targetTileType, player, fighterClass, attackTarget,
   onSelectAction, onSelectBuild, onSubmit, onCancel,
+  onChangeMoveRequest, onRequestTarget, onClearTarget,
 }: Props) {
+  const isRanged = fighterClass === 'archer' || fighterClass === 'mage';
+  const needsTarget = isRanged && selectedAction === 'attack';
   const canAfford = (option: BuildOption) => {
     const cost = option === 'upgrade'
       ? (UPGRADE_COSTS[player.weaponTier - 1] || UPGRADE_COSTS[UPGRADE_COSTS.length - 1])
@@ -49,7 +57,8 @@ export default function MoveSelector({
   const isOptionEnabled = (option: BuildOption) => canAfford(option) && canPlace(option);
 
   const isSubmitReady = isStunned || (selectedAction !== null
-    && (selectedAction !== 'build' || buildOption !== null));
+    && (selectedAction !== 'build' || buildOption !== null)
+    && (!needsTarget || attackTarget != null));
 
   return (
     <View style={styles.container}>
@@ -85,7 +94,12 @@ export default function MoveSelector({
                 disabled && styles.buildDisabled,
               ]}
               disabled={disabled}
-              onPress={() => onSelectAction(action)}
+              onPress={() => {
+                onSelectAction(action);
+                if (action === 'attack' && isRanged && onRequestTarget) {
+                  onRequestTarget();
+                }
+              }}
             >
               <Image source={ACTION_IMAGES[action]} style={styles.actionImage} />
               <Text style={[
@@ -143,12 +157,40 @@ export default function MoveSelector({
         </View>
       )}
 
+      {needsTarget && !isLocked && (
+        <View style={styles.targetPrompt}>
+          {attackTarget != null ? (
+            <View style={styles.targetRow}>
+              <Text style={styles.targetText}>
+                Target: tile {attackTarget}
+              </Text>
+              <TouchableOpacity onPress={onClearTarget}>
+                <Text style={styles.targetClear}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={styles.targetText}>
+              {fighterClass === 'archer'
+                ? 'Tap a tile to target'
+                : 'Tap top-left of 2\u00d72 area'}
+            </Text>
+          )}
+        </View>
+      )}
+
       {isLocked ? (
-        <View style={styles.lockedLabel}>
-          <View style={styles.lockedRow}>
-            <Image source={UI_IMAGES.checkmark} style={styles.inlineIcon} />
-            <Text style={styles.lockedLabelText}> Move Locked In</Text>
+        <View style={styles.lockedLabelRow}>
+          <View style={styles.lockedLabel}>
+            <View style={styles.lockedRow}>
+              <Image source={UI_IMAGES.checkmark} style={styles.inlineIcon} />
+              <Text style={styles.lockedLabelText}> Move Locked In</Text>
+            </View>
           </View>
+          {onChangeMoveRequest && (
+            <TouchableOpacity style={styles.changeBtn} onPress={onChangeMoveRequest}>
+              <Text style={styles.changeBtnText}>Change</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <TouchableOpacity
@@ -299,7 +341,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  lockedLabelRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   lockedLabel: {
+    flex: 1,
     backgroundColor: COLORS.success,
     paddingVertical: 14,
     borderRadius: 8,
@@ -309,6 +356,42 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  changeBtn: {
+    backgroundColor: COLORS.surfaceLight,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.textSecondary,
+  },
+  changeBtnText: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  targetPrompt: {
+    backgroundColor: 'rgba(233,69,96,0.15)',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  targetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  targetText: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  targetClear: {
+    color: COLORS.error,
+    fontSize: 13,
+    fontWeight: '600',
   },
   titleRow: {
     flexDirection: 'row',

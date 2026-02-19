@@ -11,13 +11,14 @@ interface Props {
   selectedTile: number | null;
   lockedTile: number | null;
   validTargets: Set<number>;
+  attackTargetTiles?: Set<number>;
   onTilePress: (tileIndex: number) => void;
 }
 
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 2.5;
 
-export default function GameBoard({ foggedTiles, boardSize, selectedTile, lockedTile, validTargets, onTilePress }: Props) {
+export default function GameBoard({ foggedTiles, boardSize, selectedTile, lockedTile, validTargets, attackTargetTiles, onTilePress }: Props) {
   const { width, height } = useWindowDimensions();
   const [zoom, setZoom] = useState(1);
   const zoomBase = useRef(1);
@@ -106,6 +107,7 @@ export default function GameBoard({ foggedTiles, boardSize, selectedTile, locked
                     isSelected={selectedTile === ft.index}
                     isLocked={lockedTile === ft.index}
                     isValidTarget={validTargets.has(ft.index)}
+                    isAttackTarget={attackTargetTiles?.has(ft.index) ?? false}
                     onPress={onTilePress}
                   />
                 ))}

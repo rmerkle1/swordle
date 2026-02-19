@@ -10,6 +10,7 @@ export interface SubmittedMove {
   toTile: number;
   action: ActionType;
   buildOption: BuildOption | null;
+  attackTarget?: number | null;
   day: number;
 }
 

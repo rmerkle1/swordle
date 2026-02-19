@@ -79,7 +79,14 @@ export const api = {
     });
   },
 
-  async getPendingMove(gameId: string, gamePlayerId: string): Promise<{ pendingMove: { toTile: number; action: string; buildOption: string | null; day: number } | null }> {
+  async deleteMove(gameId: string, playerId: string): Promise<{ success: boolean }> {
+    return fetchJson<{ success: boolean }>(`${API_BASE}/games/${gameId}/moves`, {
+      method: 'DELETE',
+      body: JSON.stringify({ playerId }),
+    });
+  },
+
+  async getPendingMove(gameId: string, gamePlayerId: string): Promise<{ pendingMove: { toTile: number; action: string; buildOption: string | null; attackTarget: number | null; day: number } | null }> {
     return fetchJson(`${API_BASE}/games/${gameId}/moves/pending/${gamePlayerId}`);
   },
 };

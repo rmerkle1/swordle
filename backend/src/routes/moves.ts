@@ -40,7 +40,7 @@ router.get('/pending/:playerId', async (req: Request, res: Response) => {
     const nextDay = game.current_day + 1;
 
     const moveRes = await query(
-      'SELECT destination, action, build_option FROM moves WHERE game_id = $1 AND game_player_id = $2 AND day = $3 AND processed = FALSE',
+      'SELECT destination, action, build_option, attack_target FROM moves WHERE game_id = $1 AND game_player_id = $2 AND day = $3 AND processed = FALSE',
       [gameId, gamePlayerId, nextDay]
     );
 
@@ -55,9 +55,78 @@ router.get('/pending/:playerId', async (req: Request, res: Response) => {
         toTile: row.destination,
         action: row.action,
         buildOption: row.build_option || null,
+        attackTarget: row.attack_target ?? null,
         day: game.current_day,
       },
     });
+  } catch (err: any) {
+    console.error('Moves route error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE / — retract a pending move (mounted at /api/games/:id/moves)
+router.delete('/', async (req: Request, res: Response) => {
+  try {
+    const gameId = parseInt(req.params.id, 10);
+    if (isNaN(gameId)) {
+      res.status(400).json({ error: 'Invalid game ID' });
+      return;
+    }
+
+    const { playerId } = req.body;
+    if (!playerId) {
+      res.status(400).json({ error: 'playerId is required' });
+      return;
+    }
+
+    const gamePlayerId = parseInt(playerId, 10);
+    if (isNaN(gamePlayerId)) {
+      res.status(400).json({ error: 'Invalid player ID' });
+      return;
+    }
+
+    // Validate game is active
+    const gameRes = await query('SELECT * FROM games WHERE id = $1', [gameId]);
+    if (gameRes.rows.length === 0) {
+      res.status(404).json({ error: 'Game not found' });
+      return;
+    }
+    const game = gameRes.rows[0];
+    if (game.status !== 'active') {
+      res.status(400).json({ error: 'Game is not active' });
+      return;
+    }
+
+    // Validate player exists and is active
+    const playerRes = await query(
+      'SELECT * FROM game_players WHERE id = $1 AND game_id = $2',
+      [gamePlayerId, gameId]
+    );
+    if (playerRes.rows.length === 0) {
+      res.status(404).json({ error: 'Player not found in this game' });
+      return;
+    }
+    if (playerRes.rows[0].status !== 'active') {
+      res.status(400).json({ error: 'Player is eliminated' });
+      return;
+    }
+
+    const nextDay = game.current_day + 1;
+
+    // Find unprocessed move
+    const moveRes = await query(
+      'SELECT id FROM moves WHERE game_id = $1 AND game_player_id = $2 AND day = $3 AND processed = FALSE',
+      [gameId, gamePlayerId, nextDay]
+    );
+    if (moveRes.rows.length === 0) {
+      res.status(404).json({ error: 'No pending move found' });
+      return;
+    }
+
+    await query('DELETE FROM moves WHERE id = $1', [moveRes.rows[0].id]);
+
+    res.json({ success: true });
   } catch (err: any) {
     console.error('Moves route error:', err.message);
     res.status(500).json({ error: 'Internal server error' });

@@ -36,11 +36,13 @@ export default function GameScreen() {
     showBanner, setShowBanner,
     resetMove,
     submittedMove, setSubmittedMove,
+    attackTarget, setAttackTarget,
     tileMemory, myTraps,
     updateTileMemory, addMyTrap,
   } = useGameStore();
 
   const [myGamePlayerId, setMyGamePlayerId] = useState<string | null>(null);
+  const [isSelectingTarget, setIsSelectingTarget] = useState(false);
 
   useEffect(() => {
     let isInitial = true;
@@ -128,6 +130,7 @@ export default function GameScreen() {
           toTile: pendingMove.toTile,
           action: pendingMove.action as any,
           buildOption: (pendingMove.buildOption as any) || null,
+          attackTarget: pendingMove.attackTarget ?? null,
           day: pendingMove.day,
         });
       }
@@ -166,8 +169,68 @@ export default function GameScreen() {
     return new Set([myPlayer.position, ...adj.filter((i) => !blocked.has(i))]);
   }, [myPlayer?.position, currentGame?.tiles, currentGame?.boardSize]);
 
+  // Valid attack targets for ranged classes
+  const validAttackTargets = useMemo(() => {
+    if (!myPlayer || !currentGame || !selectedTile) return new Set<number>();
+    const bs = currentGame.boardSize;
+    const totalTiles = bs * bs;
+    const blockedTypes = new Set(['void', 'water']);
+    const blocked = new Set(
+      currentGame.tiles.filter((t) => blockedTypes.has(t.type)).map((t) => t.index)
+    );
+
+    if (myPlayer.fighterClass === 'archer') {
+      const adj = getAdjacentTiles(selectedTile, bs);
+      return new Set(adj.filter((i) => i !== selectedTile && !blocked.has(i)));
+    }
+
+    if (myPlayer.fighterClass === 'mage') {
+      const result = new Set<number>();
+      const destAdj = getAdjacentTiles(selectedTile, bs);
+      // Check every possible top-left position on the board
+      for (let tl = 0; tl < totalTiles; tl++) {
+        const tlX = tl % bs;
+        if (tlX + 1 >= bs) continue; // right edge
+        const tr = tl + 1;
+        const bl = tl + bs;
+        const br = bl + 1;
+        if (br >= totalTiles) continue; // bottom edge
+        const area = [tl, tr, bl, br];
+        // Area must not contain selectedTile (no melee)
+        if (area.includes(selectedTile)) continue;
+        // At least one tile of the 2x2 must be adjacent to selectedTile
+        const hasAdj = area.some((t) => destAdj.includes(t));
+        if (hasAdj) result.add(tl);
+      }
+      return result;
+    }
+
+    return new Set<number>();
+  }, [myPlayer?.fighterClass, selectedTile, currentGame?.tiles, currentGame?.boardSize]);
+
+  // Tiles to highlight as attack zone (1 for archer, up to 4 for mage)
+  const attackTargetTilesSet = useMemo(() => {
+    if (attackTarget == null || !myPlayer || !currentGame) return new Set<number>();
+    if (myPlayer.fighterClass === 'archer') return new Set([attackTarget]);
+    if (myPlayer.fighterClass === 'mage') {
+      const bs = currentGame.boardSize;
+      return new Set([attackTarget, attackTarget + 1, attackTarget + bs, attackTarget + bs + 1]);
+    }
+    return new Set<number>();
+  }, [attackTarget, myPlayer?.fighterClass, currentGame?.boardSize]);
+
   const handleTilePress = useCallback((tileIndex: number) => {
     if (submittedMove && submittedMove.day === currentGame?.currentDay) return;
+
+    // Target selection mode for ranged classes
+    if (isSelectingTarget) {
+      if (validAttackTargets.has(tileIndex)) {
+        setAttackTarget(tileIndex);
+      }
+      setIsSelectingTarget(false);
+      return;
+    }
+
     if (selectedTile === tileIndex) {
       resetMove();
     } else if (validTargets.has(tileIndex)) {
@@ -175,7 +238,7 @@ export default function GameScreen() {
     } else {
       resetMove();
     }
-  }, [selectedTile, validTargets, submittedMove, currentGame?.currentDay]);
+  }, [selectedTile, validTargets, submittedMove, currentGame?.currentDay, isSelectingTarget, validAttackTargets]);
 
   const handleSubmit = useCallback(async () => {
     if (!currentGame || !myPlayer || selectedTile === null || !pendingAction) return;
@@ -188,17 +251,20 @@ export default function GameScreen() {
     setSubmitting(true);
     setErrorBanner(null);
     try {
+      const isRanged = myPlayer.fighterClass === 'archer' || myPlayer.fighterClass === 'mage';
       await api.submitMove(currentGame.id, {
         playerId: myPlayer.id,
         fromTile: myPlayer.position,
         toTile: selectedTile,
         action: pendingAction,
         buildOption: pendingAction === 'build' ? buildOption : null,
+        attackTarget: isRanged && pendingAction === 'attack' ? attackTarget : null,
       });
       setSubmittedMove({
         toTile: selectedTile,
         action: pendingAction,
         buildOption: buildOption,
+        attackTarget: isRanged && pendingAction === 'attack' ? attackTarget : null,
         day: currentGame.currentDay,
       });
       setShowBanner(true);
@@ -210,18 +276,35 @@ export default function GameScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [currentGame, myPlayer, selectedTile, pendingAction, buildOption]);
+  }, [currentGame, myPlayer, selectedTile, pendingAction, buildOption, attackTarget]);
 
   const handleRequestSubmit = useCallback(() => {
     if (!currentGame || selectedTile === null || !pendingAction) return;
     const dest = selectedTile === myPlayer?.position ? 'Stay in place' : `Move to tile ${selectedTile}`;
     const buildSuffix = pendingAction === 'build' && buildOption ? ` (${buildOption})` : '';
-    const summary = `${dest}, action: ${pendingAction}${buildSuffix}`;
+    const isRanged = myPlayer?.fighterClass === 'archer' || myPlayer?.fighterClass === 'mage';
+    const targetSuffix = isRanged && pendingAction === 'attack' && attackTarget != null
+      ? `, target: tile ${attackTarget}` : '';
+    const summary = `${dest}, action: ${pendingAction}${buildSuffix}${targetSuffix}`;
     Alert.alert('Confirm Move', summary, [
       { text: 'Go Back', style: 'cancel' },
       { text: 'Lock In', onPress: handleSubmit },
     ]);
-  }, [currentGame, myPlayer, selectedTile, pendingAction, buildOption, handleSubmit]);
+  }, [currentGame, myPlayer, selectedTile, pendingAction, buildOption, attackTarget, handleSubmit]);
+
+  const handleChangeMove = useCallback(async () => {
+    if (!currentGame || !myPlayer) return;
+    setErrorBanner(null);
+    try {
+      await api.deleteMove(currentGame.id, myPlayer.id);
+      setSubmittedMove(null);
+      setAttackTarget(null);
+      setIsSelectingTarget(false);
+    } catch (err: any) {
+      setErrorBanner(err.message || 'Failed to change move');
+      setTimeout(() => setErrorBanner(null), 3000);
+    }
+  }, [currentGame, myPlayer]);
 
   const handleLeave = useCallback(() => {
     if (!currentGame || !playerId) return;
@@ -374,7 +457,8 @@ export default function GameScreen() {
           boardSize={currentGame.boardSize}
           selectedTile={isEliminated ? null : selectedTile}
           lockedTile={submittedMove?.toTile ?? null}
-          validTargets={isEliminated ? new Set() : validTargets}
+          validTargets={isEliminated ? new Set() : (isSelectingTarget ? validAttackTargets : validTargets)}
+          attackTargetTiles={attackTargetTilesSet}
           onTilePress={isEliminated ? () => {} : handleTilePress}
         />
         {!isEliminated && selectedTile !== null && (
@@ -385,10 +469,14 @@ export default function GameScreen() {
             isStunned={myPlayer.isStunned}
             targetTileType={currentGame.tiles[selectedTile].type}
             player={myPlayer}
+            fighterClass={myPlayer.fighterClass}
+            attackTarget={attackTarget}
             onSelectAction={setPendingAction}
             onSelectBuild={setBuildOption}
             onSubmit={handleRequestSubmit}
-            onCancel={resetMove}
+            onCancel={() => { resetMove(); setIsSelectingTarget(false); }}
+            onRequestTarget={() => setIsSelectingTarget(true)}
+            onClearTarget={() => { setAttackTarget(null); setIsSelectingTarget(false); }}
           />
         )}
         {!isEliminated && submittedMove && selectedTile === null && (
@@ -400,10 +488,13 @@ export default function GameScreen() {
             isLocked
             targetTileType={currentGame.tiles[submittedMove.toTile]?.type ?? 'empty'}
             player={myPlayer}
+            fighterClass={myPlayer.fighterClass}
+            attackTarget={submittedMove.attackTarget ?? null}
             onSelectAction={setPendingAction}
             onSelectBuild={setBuildOption}
             onSubmit={handleSubmit}
             onCancel={resetMove}
+            onChangeMoveRequest={handleChangeMove}
           />
         )}
         {currentGame.events.length > 0 && (

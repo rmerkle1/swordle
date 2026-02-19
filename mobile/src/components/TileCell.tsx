@@ -12,6 +12,7 @@ interface Props {
   isSelected: boolean;
   isLocked: boolean;
   isValidTarget: boolean;
+  isAttackTarget?: boolean;
   onPress: (tileIndex: number) => void;
 }
 
@@ -29,7 +30,7 @@ function blendColor(hex: string, overlay: string, opacity: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
-export default function TileCell({ foggedTile, size, isSelected, isLocked, isValidTarget, onPress }: Props) {
+export default function TileCell({ foggedTile, size, isSelected, isLocked, isValidTarget, isAttackTarget = false, onPress }: Props) {
   const { visibility, displayType, displayEmoji, displayPlayer } = foggedTile;
 
   // Hidden tiles render as void
@@ -62,6 +63,7 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
         isSelected && styles.selected,
         isLocked && styles.locked,
         isValidTarget && styles.validTarget,
+        isAttackTarget && styles.attackTarget,
       ]}
     >
       {displayType !== 'void' && (
@@ -105,6 +107,11 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
       {/* Locked move overlay — renders on top of image */}
       {isLocked && (
         <View style={styles.lockedOverlay} pointerEvents="none" />
+      )}
+
+      {/* Attack target overlay */}
+      {isAttackTarget && (
+        <View style={styles.attackTargetOverlay} pointerEvents="none" />
       )}
     </TouchableOpacity>
   );
@@ -176,5 +183,15 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: COLORS.success,
     backgroundColor: 'rgba(46,204,113,0.2)',
+  },
+  attackTarget: {
+    borderWidth: 2,
+    borderColor: 'rgba(233,69,96,0.8)',
+  },
+  attackTargetOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 3,
+    borderColor: 'rgba(233,69,96,0.8)',
+    backgroundColor: 'rgba(233,69,96,0.3)',
   },
 });

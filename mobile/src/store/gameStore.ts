@@ -8,6 +8,7 @@ interface GameState {
   selectedTile: number | null;
   pendingAction: ActionType | null;
   buildOption: BuildOption | null;
+  attackTarget: number | null;
   isSubmitting: boolean;
   showBanner: boolean;
   tileMemory: Map<number, TileMemoryEntry>;
@@ -19,6 +20,7 @@ interface GameState {
   selectTile: (tileIndex: number | null) => void;
   setPendingAction: (action: ActionType | null) => void;
   setBuildOption: (option: BuildOption | null) => void;
+  setAttackTarget: (target: number | null) => void;
   setSubmitting: (val: boolean) => void;
   setShowBanner: (val: boolean) => void;
   resetMove: () => void;
@@ -33,6 +35,7 @@ export const useGameStore = create<GameState>((set) => ({
   selectedTile: null,
   pendingAction: null,
   buildOption: null,
+  attackTarget: null,
   isSubmitting: false,
   showBanner: false,
   tileMemory: new Map(),
@@ -48,6 +51,7 @@ export const useGameStore = create<GameState>((set) => ({
         selectedTile: null,
         pendingAction: null,
         buildOption: null,
+        attackTarget: null,
         tileMemory: new Map(),
         myTraps: new Set(),
         submittedMove: null,
@@ -56,12 +60,13 @@ export const useGameStore = create<GameState>((set) => ({
     // Polling update for the same game — preserve user interaction state
     return { currentGame: game };
   }),
-  selectTile: (tileIndex) => set({ selectedTile: tileIndex, pendingAction: null, buildOption: null }),
+  selectTile: (tileIndex) => set({ selectedTile: tileIndex, pendingAction: null, buildOption: null, attackTarget: null }),
   setPendingAction: (action) => set({ pendingAction: action, buildOption: action === 'build' ? null : null }),
   setBuildOption: (option) => set({ buildOption: option }),
+  setAttackTarget: (target) => set({ attackTarget: target }),
   setSubmitting: (val) => set({ isSubmitting: val }),
   setShowBanner: (val) => set({ showBanner: val }),
-  resetMove: () => set({ selectedTile: null, pendingAction: null, buildOption: null }),
+  resetMove: () => set({ selectedTile: null, pendingAction: null, buildOption: null, attackTarget: null }),
   setSubmittedMove: (move) => set({ submittedMove: move }),
   updateTileMemory: (position, boardSize, tiles, currentDay) =>
     set((state) => {
