@@ -175,19 +175,19 @@ export default function HomeScreen() {
               <Text style={styles.classBtnDesc}>Melee fighter with 75% duel advantage</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.classBtn, styles.classBtnLocked]} disabled>
-              <Text style={styles.classBtnTitleLocked}>Archer (Locked)</Text>
-              <Text style={styles.classBtnDescLocked}>Ranged attacker targeting adjacent tiles</Text>
+            <TouchableOpacity style={[styles.classBtn, styles.classBtnActive]} onPress={() => confirmJoinWithClass('archer')}>
+              <Text style={styles.classBtnTitle}>Archer</Text>
+              <Text style={styles.classBtnDesc}>Ranged attacker targeting adjacent tiles</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.classBtn, styles.classBtnLocked]} disabled>
-              <Text style={styles.classBtnTitleLocked}>Cavalry (Locked)</Text>
-              <Text style={styles.classBtnDescLocked}>Can move 2 tiles per turn</Text>
+            <TouchableOpacity style={[styles.classBtn, styles.classBtnActive]} onPress={() => confirmJoinWithClass('cavalry')}>
+              <Text style={styles.classBtnTitle}>Cavalry</Text>
+              <Text style={styles.classBtnDesc}>Can move 2 tiles per turn</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.classBtn, styles.classBtnLocked]} disabled>
-              <Text style={styles.classBtnTitleLocked}>Mage (Locked)</Text>
-              <Text style={styles.classBtnDescLocked}>Area-of-effect ranged attack</Text>
+            <TouchableOpacity style={[styles.classBtn, styles.classBtnActive]} onPress={() => confirmJoinWithClass('mage')}>
+              <Text style={styles.classBtnTitle}>Mage</Text>
+              <Text style={styles.classBtnDesc}>Area-of-effect ranged attack</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.modalCancel} onPress={() => { setShowClassPicker(false); setPendingJoinGameId(null); }}>

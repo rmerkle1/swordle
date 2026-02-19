@@ -135,10 +135,6 @@ router.post('/:id/join', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Invalid fighter class' });
       return;
     }
-    if (fighterClass !== 'knight') {
-      res.status(400).json({ error: 'Class not yet available' });
-      return;
-    }
 
     // Set weapon_tier based on class
     const weaponTier = fighterClass === 'cavalry' ? 0 : 1;

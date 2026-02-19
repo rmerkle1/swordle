@@ -298,11 +298,19 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Insert move
-    await query(
-      `INSERT INTO moves (game_id, game_player_id, day, destination, action, build_option, attack_target)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [gameId, gamePlayerId, nextDay, toTile, action, buildOption || null, attackTarget ?? null]
-    );
+    try {
+      await query(
+        `INSERT INTO moves (game_id, game_player_id, day, destination, action, build_option, attack_target)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [gameId, gamePlayerId, nextDay, toTile, action, buildOption || null, attackTarget ?? null]
+      );
+    } catch (err: any) {
+      if (err.code === '23505') {
+        res.status(400).json({ error: 'Move already submitted for this day' });
+        return;
+      }
+      throw err;
+    }
 
     // Auto-process day if all alive players have submitted moves
     const alivePlayersRes = await query(
