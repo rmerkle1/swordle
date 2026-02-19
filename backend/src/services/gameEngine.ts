@@ -1,5 +1,5 @@
 import { query, pool } from '../config/database';
-import { Game, GamePlayer, GameEvent, MapTile, TileType, ActionType, BuildOption } from '../types';
+import { Game, GamePlayer, GameEvent, MapTile, TileType, ActionType, BuildOption, FighterClass } from '../types';
 
 function chebyshevDistance(index1: number, index2: number, boardSize: number): number {
   const x1 = index1 % boardSize;
@@ -50,6 +50,8 @@ interface ResolvedMove {
   toTile: number;
   action: ActionType;
   buildOption?: BuildOption | null;
+  attackTarget?: number | null;
+  fighterClass: FighterClass;
 }
 
 interface ResolutionResult {
@@ -77,12 +79,24 @@ function isStormConnected(playable: Set<number>, boardSize: number): boolean {
   return visited.size === playable.size;
 }
 
+export function weightedRandom(contestants: ResolvedMove[], rng: () => number): ResolvedMove {
+  const weights = contestants.map(c => c.fighterClass === 'knight' ? 3 : 1);
+  const total = weights.reduce((a, b) => a + b, 0);
+  let roll = rng() * total;
+  for (let i = 0; i < contestants.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return contestants[i];
+  }
+  return contestants[contestants.length - 1];
+}
+
 export function resolveMoves(
   game: { currentDay: number; boardSize: number },
   players: GamePlayer[],
   tiles: MapTile[],
   moves: ResolvedMove[],
-  trapOwners: Map<number, string> = new Map()
+  trapOwners: Map<number, string> = new Map(),
+  rng: () => number = Math.random
 ): ResolutionResult {
   const events: GameEvent[] = [];
   const day = game.currentDay + 1;
@@ -93,7 +107,7 @@ export function resolveMoves(
   const playerMap = new Map(updatedPlayers.map((p) => [p.id, p]));
   const moveMap = new Map(moves.map((m) => [m.playerId, m]));
 
-  // --- 1) Detect collisions with defenders ---
+  // --- 1) Tile Duel Resolution ---
   const byDest = new Map<number, ResolvedMove[]>();
   for (const move of moves) {
     const arr = byDest.get(move.toTile) || [];
@@ -102,31 +116,69 @@ export function resolveMoves(
   }
 
   const bumpedBack = new Set<string>();
+  const eliminated = new Set<string>();
   const stunned = new Set<string>();
 
   for (const [, tileMoves] of byDest) {
     if (tileMoves.length < 2) continue;
-    const defenders = tileMoves.filter((m) => m.action === 'defend');
-    const others = tileMoves.filter((m) => m.action !== 'defend');
+    // Only consider melee classes for tile duels (archer/mage don't melee-attack on destination)
+    const attackers = tileMoves.filter((m) => m.action === 'attack' && (m.fighterClass === 'knight' || m.fighterClass === 'cavalry'));
+    const nonAttackers = tileMoves.filter((m) => !(m.action === 'attack' && (m.fighterClass === 'knight' || m.fighterClass === 'cavalry')));
 
-    if (defenders.length > 0 && others.length > 0) {
-      for (const def of defenders) {
-        bumpedBack.add(def.playerId);
+    let winner: ResolvedMove;
+
+    if (attackers.length === 1 && nonAttackers.length > 0) {
+      // 1 attacker vs others → attacker wins
+      winner = attackers[0];
+      for (const loser of nonAttackers) {
+        eliminated.add(loser.playerId);
+        bumpedBack.add(loser.playerId);
         events.push({
           id: `ev-${day}-${eventId++}`, day,
-          message: `${def.playerName} was defending but got bumped back!`,
-          playerId: def.playerId, playerName: def.playerName, playerColor: def.playerColor,
+          message: `${winner.playerName} eliminated ${loser.playerName} in a duel!`,
+          playerId: winner.playerId, playerName: winner.playerName, playerColor: winner.playerColor,
         });
       }
-      for (const other of others) {
-        if (other.action === 'attack') {
-          stunned.add(other.playerId);
-          events.push({
-            id: `ev-${day}-${eventId++}`, day,
-            message: `${other.playerName} attacked a defender and is stunned!`,
-            playerId: other.playerId, playerName: other.playerName, playerColor: other.playerColor,
-          });
-        }
+    } else if (attackers.length >= 2) {
+      // Multiple attackers → highest tier wins, equal tier → weighted random
+      const maxTier = Math.max(...attackers.map(a => {
+        const p = playerMap.get(a.playerId);
+        return p ? p.weaponTier : 0;
+      }));
+      const topAttackers = attackers.filter(a => {
+        const p = playerMap.get(a.playerId);
+        return p && p.weaponTier === maxTier;
+      });
+
+      if (topAttackers.length === 1) {
+        winner = topAttackers[0];
+      } else {
+        winner = weightedRandom(topAttackers, rng);
+      }
+
+      // Eliminate all others (attackers who lost + non-attackers)
+      for (const m of tileMoves) {
+        if (m.playerId === winner.playerId) continue;
+        eliminated.add(m.playerId);
+        bumpedBack.add(m.playerId);
+        events.push({
+          id: `ev-${day}-${eventId++}`, day,
+          message: `${winner.playerName} eliminated ${m.playerName} in a duel!`,
+          playerId: winner.playerId, playerName: winner.playerName, playerColor: winner.playerColor,
+        });
+      }
+    } else {
+      // 0 melee attackers → weighted random among all
+      winner = weightedRandom(tileMoves, rng);
+      for (const m of tileMoves) {
+        if (m.playerId === winner.playerId) continue;
+        eliminated.add(m.playerId);
+        bumpedBack.add(m.playerId);
+        events.push({
+          id: `ev-${day}-${eventId++}`, day,
+          message: `${m.playerName} was eliminated in a collision (${winner.playerName} survived)!`,
+          playerId: winner.playerId, playerName: winner.playerName, playerColor: winner.playerColor,
+        });
       }
     }
   }
@@ -144,6 +196,12 @@ export function resolveMoves(
         playerId: move.playerId, playerName: move.playerName, playerColor: move.playerColor,
       });
     }
+  }
+
+  // Mark eliminated players from duel resolution
+  for (const pid of eliminated) {
+    const player = playerMap.get(pid);
+    if (player) player.isAlive = false;
   }
 
   // --- 2) Apply moves ---
@@ -258,59 +316,118 @@ export function resolveMoves(
     }
   }
 
-  // --- 2b) Attack combat resolution ---
-  // Group attackers by destination tile, then resolve against all players on that tile
-  for (const move of moves) {
-    if (move.action !== 'attack') continue;
+  // --- 2b) Ranged Attack Resolution (Archer/Mage) ---
+  const rangedMoves = moves.filter(m =>
+    m.action === 'attack' && (m.fighterClass === 'archer' || m.fighterClass === 'mage') && m.attackTarget != null
+  );
+
+  // Build crossfire pairs first to handle mutual targeting
+  const crossfirePairs = new Set<string>();
+
+  for (const move of rangedMoves) {
     const attacker = playerMap.get(move.playerId);
     if (!attacker || !attacker.isAlive) continue;
-    // Skip if was stunned from previous round (action ignored)
     const origAttacker = players.find((p) => p.id === move.playerId);
     if (origAttacker?.isStunned) continue;
 
-    // Find other alive players on the same tile
-    for (const target of updatedPlayers) {
-      if (target.id === attacker.id || !target.isAlive) continue;
-      if (target.position !== attacker.position) continue;
+    // Get target tiles for this attacker
+    const attackerTargetTiles: number[] = [];
+    if (move.fighterClass === 'archer') {
+      attackerTargetTiles.push(move.attackTarget!);
+    } else if (move.fighterClass === 'mage') {
+      const tl = move.attackTarget!;
+      attackerTargetTiles.push(tl, tl + 1, tl + game.boardSize, tl + 1 + game.boardSize);
+    }
 
-      // Check if target is also attacking
-      const targetMove = moveMap.get(target.id);
-      const targetIsAttacking = targetMove?.action === 'attack';
+    // Check for crossfire with other ranged attackers
+    for (const other of rangedMoves) {
+      if (other.playerId === move.playerId) continue;
+      const otherPlayer = playerMap.get(other.playerId);
+      if (!otherPlayer || !otherPlayer.isAlive) continue;
+      const origOther = players.find((p) => p.id === other.playerId);
+      if (origOther?.isStunned) continue;
 
-      if (targetIsAttacking) {
-        // Both attacking on same tile: higher weapon tier wins
-        if (attacker.weaponTier > target.weaponTier) {
-          target.isAlive = false;
+      // Does this attacker's area cover the other's tile?
+      const otherPos = otherPlayer.position;
+      if (!attackerTargetTiles.includes(otherPos)) continue;
+
+      // Does the other's area cover this attacker's tile?
+      const otherTargetTiles: number[] = [];
+      if (other.fighterClass === 'archer') {
+        otherTargetTiles.push(other.attackTarget!);
+      } else if (other.fighterClass === 'mage') {
+        const otl = other.attackTarget!;
+        otherTargetTiles.push(otl, otl + 1, otl + game.boardSize, otl + 1 + game.boardSize);
+      }
+
+      if (otherTargetTiles.includes(attacker.position)) {
+        // Mutual crossfire! Resolve by tier
+        const pairKey = [move.playerId, other.playerId].sort().join('-');
+        if (crossfirePairs.has(pairKey)) continue;
+        crossfirePairs.add(pairKey);
+
+        if (attacker.weaponTier > otherPlayer.weaponTier) {
+          otherPlayer.isAlive = false;
           events.push({
             id: `ev-${day}-${eventId++}`, day,
-            message: `${attacker.name} (tier ${attacker.weaponTier}) eliminated ${target.name} (tier ${target.weaponTier}) in combat!`,
+            message: `${attacker.name} outgunned ${otherPlayer.name} in a ranged crossfire!`,
             playerId: attacker.id, playerName: attacker.name, playerColor: attacker.color,
           });
-        } else if (target.weaponTier > attacker.weaponTier) {
+        } else if (otherPlayer.weaponTier > attacker.weaponTier) {
           attacker.isAlive = false;
           events.push({
             id: `ev-${day}-${eventId++}`, day,
-            message: `${target.name} (tier ${target.weaponTier}) eliminated ${attacker.name} (tier ${attacker.weaponTier}) in combat!`,
-            playerId: target.id, playerName: target.name, playerColor: target.color,
+            message: `${otherPlayer.name} outgunned ${attacker.name} in a ranged crossfire!`,
+            playerId: otherPlayer.id, playerName: otherPlayer.name, playerColor: otherPlayer.color,
           });
-          break; // Attacker is dead, stop checking targets
         } else {
-          // Equal tiers: both survive, both stunned
-          attacker.isStunned = true;
-          target.isStunned = true;
+          // Equal tier → both eliminated
+          attacker.isAlive = false;
+          otherPlayer.isAlive = false;
           events.push({
             id: `ev-${day}-${eventId++}`, day,
-            message: `${attacker.name} and ${target.name} clashed with equal weapons — both stunned!`,
+            message: `${attacker.name} and ${otherPlayer.name} eliminated each other in a ranged crossfire!`,
           });
         }
-      } else {
-        // Attacker vs non-attacker: attacker eliminates target
-        target.isAlive = false;
-        events.push({
-          id: `ev-${day}-${eventId++}`, day,
-          message: `${attacker.name} eliminated ${target.name}!`,
-          playerId: attacker.id, playerName: attacker.name, playerColor: attacker.color,
-        });
+      }
+    }
+  }
+
+  // Now resolve remaining ranged attacks on non-crossfire targets
+  for (const move of rangedMoves) {
+    const attacker = playerMap.get(move.playerId);
+    if (!attacker || !attacker.isAlive) continue;
+    const origAttacker = players.find((p) => p.id === move.playerId);
+    if (origAttacker?.isStunned) continue;
+
+    const targetTiles: number[] = [];
+    if (move.fighterClass === 'archer') {
+      targetTiles.push(move.attackTarget!);
+    } else if (move.fighterClass === 'mage') {
+      const tl = move.attackTarget!;
+      targetTiles.push(tl, tl + 1, tl + game.boardSize, tl + 1 + game.boardSize);
+    }
+
+    for (const tileIdx of targetTiles) {
+      for (const target of updatedPlayers) {
+        if (target.id === attacker.id || !target.isAlive) continue;
+        if (target.position !== tileIdx) continue;
+
+        const targetMove = moveMap.get(target.id);
+        if (targetMove?.action === 'defend') {
+          events.push({
+            id: `ev-${day}-${eventId++}`, day,
+            message: `${target.name} defended against ${attacker.name}'s ranged attack!`,
+            playerId: target.id, playerName: target.name, playerColor: target.color,
+          });
+        } else {
+          target.isAlive = false;
+          events.push({
+            id: `ev-${day}-${eventId++}`, day,
+            message: `${attacker.name} eliminated ${target.name} with a ranged attack!`,
+            playerId: attacker.id, playerName: attacker.name, playerColor: attacker.color,
+          });
+        }
       }
     }
   }
@@ -417,6 +534,7 @@ function toGamePlayer(row: any): GamePlayer {
     wood: row.wood,
     metal: row.metal,
     weaponTier: row.weapon_tier,
+    fighterClass: (row.fighter_class as FighterClass) || 'knight',
     isAlive: row.status === 'active',
     isStunned: row.is_stunned,
     daysInStorm: row.days_in_storm,
@@ -490,7 +608,7 @@ export async function processDay(gameId: number): Promise<Game> {
 
     // Fetch unprocessed moves for this day
     const movesRes = await client.query(
-      `SELECT m.*, gp.display_name, gp.color, gp.player_pubkey
+      `SELECT m.*, gp.display_name, gp.color, gp.player_pubkey, gp.fighter_class
        FROM moves m
        JOIN game_players gp ON m.game_player_id = gp.id
        WHERE m.game_id = $1 AND m.day = $2 AND m.processed = FALSE`,
@@ -506,6 +624,8 @@ export async function processDay(gameId: number): Promise<Game> {
       toTile: r.destination,
       action: r.action as ActionType,
       buildOption: r.build_option as BuildOption | null,
+      attackTarget: r.attack_target ?? null,
+      fighterClass: (r.fighter_class as FighterClass) || 'knight',
     }));
 
     // Resolve

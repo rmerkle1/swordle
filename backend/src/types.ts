@@ -4,6 +4,8 @@ export type ActionType = 'attack' | 'defend' | 'collect' | 'build' | 'scout';
 
 export type BuildOption = 'wall' | 'trap' | 'upgrade';
 
+export type FighterClass = 'knight' | 'archer' | 'cavalry' | 'mage';
+
 export type GameStatus = 'lobby' | 'active' | 'completed';
 
 export interface MapTile {
@@ -22,6 +24,7 @@ export interface GamePlayer {
   wood: number;
   metal: number;
   weaponTier: number;
+  fighterClass: FighterClass;
   isAlive: boolean;
   isStunned: boolean;
   daysInStorm: number;
@@ -34,6 +37,7 @@ export interface Move {
   toTile: number;
   action: ActionType;
   buildOption?: BuildOption | null;
+  attackTarget?: number | null;
 }
 
 export interface GameEvent {

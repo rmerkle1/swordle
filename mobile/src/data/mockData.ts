@@ -209,10 +209,10 @@ const { tiles: board, gridSize } = generateMap(PLAYER_COUNT, 42);
 const spawns = randomSpawnPositions(board, PLAYER_COUNT, rand);
 
 const mockPlayers: GamePlayer[] = [
-  { id: 'player-1', playerId: 'player-1', name: 'You', position: spawns[0], color: PLAYER_COLORS[0], wood: 2, metal: 1, weaponTier: 1, isAlive: true, isStunned: false, daysInStorm: 0, stormRevealed: false },
-  { id: 'player-2', playerId: 'player-2', name: 'Knight42', position: spawns[1], color: PLAYER_COLORS[1], wood: 1, metal: 0, weaponTier: 1, isAlive: true, isStunned: false, daysInStorm: 0, stormRevealed: false },
-  { id: 'player-3', playerId: 'player-3', name: 'DragonSlyr', position: spawns[2], color: PLAYER_COLORS[2], wood: 0, metal: 2, weaponTier: 1, isAlive: true, isStunned: false, daysInStorm: 0, stormRevealed: false },
-  { id: 'player-4', playerId: 'player-4', name: 'SwordMstr', position: spawns[3], color: PLAYER_COLORS[3], wood: 3, metal: 1, weaponTier: 2, isAlive: true, isStunned: false, daysInStorm: 0, stormRevealed: false },
+  { id: 'player-1', playerId: 'player-1', name: 'You', position: spawns[0], color: PLAYER_COLORS[0], wood: 2, metal: 1, weaponTier: 1, fighterClass: 'knight', isAlive: true, isStunned: false, daysInStorm: 0, stormRevealed: false },
+  { id: 'player-2', playerId: 'player-2', name: 'Knight42', position: spawns[1], color: PLAYER_COLORS[1], wood: 1, metal: 0, weaponTier: 1, fighterClass: 'knight', isAlive: true, isStunned: false, daysInStorm: 0, stormRevealed: false },
+  { id: 'player-3', playerId: 'player-3', name: 'DragonSlyr', position: spawns[2], color: PLAYER_COLORS[2], wood: 0, metal: 2, weaponTier: 1, fighterClass: 'knight', isAlive: true, isStunned: false, daysInStorm: 0, stormRevealed: false },
+  { id: 'player-4', playerId: 'player-4', name: 'SwordMstr', position: spawns[3], color: PLAYER_COLORS[3], wood: 3, metal: 1, weaponTier: 2, fighterClass: 'knight', isAlive: true, isStunned: false, daysInStorm: 0, stormRevealed: false },
 ];
 
 const mockEvents: GameEvent[] = [

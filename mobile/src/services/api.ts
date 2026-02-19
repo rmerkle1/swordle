@@ -58,17 +58,17 @@ export const api = {
     }
   },
 
-  async createGame(maxPlayers: number, creatorId: string): Promise<Game> {
+  async createGame(maxPlayers: number, creatorId: string, moveDeadlineHour?: number): Promise<Game> {
     return fetchJson<Game>(`${API_BASE}/games`, {
       method: 'POST',
-      body: JSON.stringify({ maxPlayers, creatorId }),
+      body: JSON.stringify({ maxPlayers, creatorId, moveDeadlineHour }),
     });
   },
 
-  async joinGame(gameId: string, playerId: string): Promise<{ success: boolean; game: Game }> {
+  async joinGame(gameId: string, playerId: string, fighterClass?: string): Promise<{ success: boolean; game: Game }> {
     return fetchJson<{ success: boolean; game: Game }>(`${API_BASE}/games/${gameId}/join`, {
       method: 'POST',
-      body: JSON.stringify({ playerId }),
+      body: JSON.stringify({ playerId, fighterClass }),
     });
   },
 

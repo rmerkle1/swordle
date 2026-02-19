@@ -163,7 +163,7 @@ export default function GameScreen() {
     const blocked = new Set(
       currentGame.tiles.filter((t) => blockedTypes.has(t.type)).map((t) => t.index)
     );
-    return new Set(adj.filter((i) => !blocked.has(i)));
+    return new Set([myPlayer.position, ...adj.filter((i) => !blocked.has(i))]);
   }, [myPlayer?.position, currentGame?.tiles, currentGame?.boardSize]);
 
   const handleTilePress = useCallback((tileIndex: number) => {
@@ -211,6 +211,17 @@ export default function GameScreen() {
       setSubmitting(false);
     }
   }, [currentGame, myPlayer, selectedTile, pendingAction, buildOption]);
+
+  const handleRequestSubmit = useCallback(() => {
+    if (!currentGame || selectedTile === null || !pendingAction) return;
+    const dest = selectedTile === myPlayer?.position ? 'Stay in place' : `Move to tile ${selectedTile}`;
+    const buildSuffix = pendingAction === 'build' && buildOption ? ` (${buildOption})` : '';
+    const summary = `${dest}, action: ${pendingAction}${buildSuffix}`;
+    Alert.alert('Confirm Move', summary, [
+      { text: 'Go Back', style: 'cancel' },
+      { text: 'Lock In', onPress: handleSubmit },
+    ]);
+  }, [currentGame, myPlayer, selectedTile, pendingAction, buildOption, handleSubmit]);
 
   const handleLeave = useCallback(() => {
     if (!currentGame || !playerId) return;
@@ -376,7 +387,7 @@ export default function GameScreen() {
             player={myPlayer}
             onSelectAction={setPendingAction}
             onSelectBuild={setBuildOption}
-            onSubmit={handleSubmit}
+            onSubmit={handleRequestSubmit}
             onCancel={resetMove}
           />
         )}

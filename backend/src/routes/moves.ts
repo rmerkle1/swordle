@@ -18,6 +18,7 @@ const moveSchema = z.object({
   toTile: z.number().int().min(0),
   action: z.enum(['attack', 'defend', 'collect', 'build', 'scout']),
   buildOption: z.enum(['wall', 'trap', 'upgrade']).nullable().optional(),
+  attackTarget: z.number().int().min(0).nullable().optional(),
 });
 
 // GET /pending/:playerId — check if player has a pending move for this day
@@ -77,7 +78,7 @@ router.post('/', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Invalid move data', details: parsed.error.errors });
       return;
     }
-    const { playerId, fromTile, toTile, action, buildOption } = parsed.data;
+    const { playerId, fromTile, toTile, action, buildOption, attackTarget } = parsed.data;
 
     // Fetch game
     const gameRes = await query('SELECT * FROM games WHERE id = $1', [gameId]);
@@ -131,9 +132,76 @@ router.post('/', async (req: Request, res: Response) => {
     // Validate adjacency
     const boardSize = Math.round(Math.sqrt(game.map_size));
     const adjacent = getAdjacentTiles(fromTile, boardSize);
-    if (toTile !== fromTile && !adjacent.includes(toTile)) {
+    const fighterClass = player.fighter_class;
+
+    // Cavalry: allow Chebyshev distance 2 via two-step path
+    if (fighterClass === 'cavalry' && toTile !== fromTile && !adjacent.includes(toTile)) {
+      const tilesForPathRes = await query(
+        'SELECT tile_index, tile_type FROM map_tiles WHERE game_id = $1',
+        [gameId]
+      );
+      const tileTypeMap = new Map(tilesForPathRes.rows.map((r: any) => [r.tile_index as number, r.tile_type as string]));
+      const blockedPathTypes = new Set(['void', 'water', 'storm', 'wall']);
+      const intermediates = getAdjacentTiles(fromTile, boardSize);
+      const reachable = intermediates.some(mid => {
+        const midType = tileTypeMap.get(mid);
+        if (midType && blockedPathTypes.has(midType)) return false;
+        return getAdjacentTiles(mid, boardSize).includes(toTile);
+      });
+      if (!reachable) {
+        res.status(400).json({ error: 'Destination not reachable in 2 steps' });
+        return;
+      }
+    } else if (toTile !== fromTile && !adjacent.includes(toTile)) {
       res.status(400).json({ error: 'Destination tile is not adjacent' });
       return;
+    }
+
+    // Archer: attackTarget must be adjacent to destination, not the destination itself
+    if (fighterClass === 'archer' && action === 'attack') {
+      if (attackTarget == null) {
+        res.status(400).json({ error: 'Archer must specify attackTarget' });
+        return;
+      }
+      if (attackTarget === toTile) {
+        res.status(400).json({ error: 'Archer cannot melee — target must differ from destination' });
+        return;
+      }
+      if (!getAdjacentTiles(toTile, boardSize).includes(attackTarget)) {
+        res.status(400).json({ error: 'attackTarget must be adjacent to destination' });
+        return;
+      }
+    }
+
+    // Mage: attackTarget (top-left of 2x2), at least 1 tile adjacent to destination
+    if (fighterClass === 'mage' && action === 'attack') {
+      if (attackTarget == null) {
+        res.status(400).json({ error: 'Mage must specify attackTarget' });
+        return;
+      }
+      const tl = attackTarget;
+      const tr = tl + 1;
+      const bl = tl + boardSize;
+      const br = bl + 1;
+      const area = [tl, tr, bl, br];
+      const totalTiles = boardSize * boardSize;
+      // Validate all 4 tiles exist on board
+      const tlX = tl % boardSize;
+      if (tlX + 1 >= boardSize || tl < 0 || br >= totalTiles) {
+        res.status(400).json({ error: 'Mage attack area extends off the board' });
+        return;
+      }
+      if (area.includes(toTile)) {
+        res.status(400).json({ error: 'Mage cannot melee' });
+        return;
+      }
+      // Validate at least 1 of the 4 is adjacent to toTile (Chebyshev ≤ 1)
+      const destAdj = getAdjacentTiles(toTile, boardSize);
+      const hasAdjacentTile = area.some(t => destAdj.includes(t) || t === toTile);
+      if (!hasAdjacentTile) {
+        res.status(400).json({ error: 'Mage attack area must be adjacent to destination' });
+        return;
+      }
     }
 
     // Validate tile is not blocked
@@ -162,9 +230,9 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Insert move
     await query(
-      `INSERT INTO moves (game_id, game_player_id, day, destination, action, build_option)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [gameId, gamePlayerId, nextDay, toTile, action, buildOption || null]
+      `INSERT INTO moves (game_id, game_player_id, day, destination, action, build_option, attack_target)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [gameId, gamePlayerId, nextDay, toTile, action, buildOption || null, attackTarget ?? null]
     );
 
     // Auto-process day if all alive players have submitted moves

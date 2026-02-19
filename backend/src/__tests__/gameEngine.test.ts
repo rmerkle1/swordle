@@ -1,6 +1,6 @@
 import { getAdjacentTiles, resolveMoves } from '../services/gameEngine';
 import { makeBoard, makePlayer, makeTile } from './helpers';
-import { ActionType, BuildOption } from '../types';
+import { ActionType, BuildOption, FighterClass } from '../types';
 
 // Helper to build a ResolvedMove for resolveMoves()
 function makeMove(
@@ -8,6 +8,7 @@ function makeMove(
   toTile: number,
   action: ActionType,
   buildOption?: BuildOption | null,
+  extra?: { attackTarget?: number | null; fighterClass?: FighterClass },
 ) {
   return {
     playerId: player.id,
@@ -18,6 +19,8 @@ function makeMove(
     toTile,
     action,
     buildOption: buildOption ?? null,
+    attackTarget: extra?.attackTarget ?? null,
+    fighterClass: extra?.fighterClass ?? player.fighterClass ?? 'knight' as FighterClass,
   };
 }
 
@@ -171,7 +174,7 @@ describe('resolveMoves — combat', () => {
     expect(updated2.isAlive).toBe(false);
   });
 
-  it('equal weapon tiers stun both attackers', () => {
+  it('equal weapon tiers — random winner, one eliminated', () => {
     const tiles = makeBoard(4);
     const p1 = makePlayer({ id: '1', position: 4, weaponTier: 1 });
     const p2 = makePlayer({ id: '2', position: 5, weaponTier: 1, color: '#3498db' });
@@ -181,19 +184,21 @@ describe('resolveMoves — combat', () => {
       makeMove(p2, 5, 'attack'),
     ];
 
+    // Use seeded rng so result is deterministic
     const result = resolveMoves(
       { currentDay: 1, boardSize: 4 },
       [p1, p2],
       tiles,
       moves,
+      new Map(),
+      () => 0.1, // deterministic: first contestant wins
     );
 
     const updated1 = result.updatedPlayers.find((p) => p.id === '1')!;
     const updated2 = result.updatedPlayers.find((p) => p.id === '2')!;
-    expect(updated1.isAlive).toBe(true);
-    expect(updated2.isAlive).toBe(true);
-    expect(updated1.isStunned).toBe(true);
-    expect(updated2.isStunned).toBe(true);
+    // One should survive, one eliminated
+    const aliveCount = [updated1, updated2].filter(p => p.isAlive).length;
+    expect(aliveCount).toBe(1);
   });
 });
 

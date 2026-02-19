@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS game_players (
     player_pubkey VARCHAR(100) NOT NULL,
     display_name VARCHAR(50),
     color VARCHAR(10),
-    fighter_class VARCHAR(20) NOT NULL DEFAULT 'swordsman',
+    fighter_class VARCHAR(20) NOT NULL DEFAULT 'knight',
     starting_position SMALLINT,
     current_position SMALLINT,
     weapon_tier SMALLINT NOT NULL DEFAULT 1,
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS game_players (
     eliminated_by_player_id INTEGER REFERENCES game_players(id),
 
     UNIQUE(game_id, player_id),
-    CHECK (fighter_class IN ('swordsman', 'archer', 'cavalry', 'wizard')),
+    CHECK (fighter_class IN ('knight', 'archer', 'cavalry', 'mage')),
     CHECK (status IN ('active', 'eliminated')),
     CHECK (weapon_tier >= 0 AND weapon_tier <= 4),
     CHECK (wood >= 0 AND metal >= 0)
@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS moves (
     destination SMALLINT NOT NULL,
     action VARCHAR(20) NOT NULL,
     build_option VARCHAR(20),
+    attack_target SMALLINT,
     submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     processed BOOLEAN NOT NULL DEFAULT FALSE,
 

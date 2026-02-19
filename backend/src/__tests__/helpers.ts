@@ -1,4 +1,4 @@
-import { MapTile, GamePlayer, TileType } from '../types';
+import { MapTile, GamePlayer, TileType, FighterClass } from '../types';
 
 export function makeTile(index: number, type: TileType = 'empty', boardSize = 8): MapTile {
   return {
@@ -26,6 +26,7 @@ export function makePlayer(overrides: Partial<GamePlayer> & { id: string }): Gam
     wood: overrides.wood ?? 0,
     metal: overrides.metal ?? 0,
     weaponTier: overrides.weaponTier ?? 1,
+    fighterClass: overrides.fighterClass ?? 'knight',
     isAlive: overrides.isAlive ?? true,
     isStunned: overrides.isStunned ?? false,
     daysInStorm: overrides.daysInStorm ?? 0,

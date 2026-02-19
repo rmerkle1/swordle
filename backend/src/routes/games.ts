@@ -122,11 +122,26 @@ router.post('/:id/join', async (req: Request, res: Response) => {
       return;
     }
 
-    const { playerId } = req.body;
+    const { playerId, fighterClass: rawClass } = req.body;
     if (!playerId) {
       res.status(400).json({ error: 'playerId is required' });
       return;
     }
+
+    // Validate fighter class
+    const validClasses = ['knight', 'archer', 'cavalry', 'mage'];
+    const fighterClass = rawClass || 'knight';
+    if (!validClasses.includes(fighterClass)) {
+      res.status(400).json({ error: 'Invalid fighter class' });
+      return;
+    }
+    if (fighterClass !== 'knight') {
+      res.status(400).json({ error: 'Class not yet available' });
+      return;
+    }
+
+    // Set weapon_tier based on class
+    const weaponTier = fighterClass === 'cavalry' ? 0 : 1;
 
     // Fetch game
     const gameRes = await query('SELECT * FROM games WHERE id = $1', [gameId]);
@@ -190,9 +205,9 @@ router.post('/:id/join', async (req: Request, res: Response) => {
     const spawnTile = emptyTiles[Math.floor(Math.random() * emptyTiles.length)];
 
     await query(
-      `INSERT INTO game_players (game_id, player_id, player_pubkey, display_name, color, starting_position, current_position)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [gameId, player.id, player.pubkey, player.username, color, spawnTile.tile_index, spawnTile.tile_index]
+      `INSERT INTO game_players (game_id, player_id, player_pubkey, display_name, color, fighter_class, weapon_tier, starting_position, current_position)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [gameId, player.id, player.pubkey, player.username, color, fighterClass, weaponTier, spawnTile.tile_index, spawnTile.tile_index]
     );
 
     const newPlayerCount = gameRow.current_players + 1;
