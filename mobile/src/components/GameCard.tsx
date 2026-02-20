@@ -43,7 +43,7 @@ export default function GameCard({ game, onPress, onJoin }: Props) {
             <Text style={styles.badgeText}>{badge.label}</Text>
           </View>
           {game.hasPasscode && (
-            <Text style={styles.lockIcon}>L</Text>
+            <Text style={styles.lockIcon}>{'\u{1F512}'}</Text>
           )}
         </View>
         {game.status === 'active' && (

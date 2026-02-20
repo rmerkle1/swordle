@@ -54,7 +54,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 const EXTRA_GAME_COST = 50;
 
-async function checkAndDeductCoins(playerId: number): Promise<{ coinCost: number; coinsRemaining: number } | { error: string; required: number; have: number }> {
+export async function checkAndDeductCoins(playerId: number): Promise<{ coinCost: number; coinsRemaining: number } | { error: string; required: number; have: number }> {
   const playerRes = await query('SELECT coins, last_game_date, games_today FROM players WHERE id = $1', [playerId]);
   if (playerRes.rows.length === 0) return { error: 'Player not found', required: 0, have: 0 };
   const p = playerRes.rows[0];
