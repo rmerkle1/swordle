@@ -111,6 +111,7 @@ export default function GameScreen() {
   // Update tile memory when position or day changes
   useEffect(() => {
     if (!myPlayer || !currentGame) return;
+    if (myPlayer.position == null || currentGame.boardSize === 0) return;
     updateTileMemory(
       myPlayer.position,
       currentGame.boardSize,
@@ -146,7 +147,7 @@ export default function GameScreen() {
 
   // Compute fogged board
   const foggedTiles = useMemo(() => {
-    if (!currentGame || !myPlayer) return [];
+    if (!currentGame || !myPlayer || myPlayer.position == null || currentGame.boardSize === 0) return [];
     return computeFoggedBoard(
       currentGame.tiles,
       currentGame.players,
@@ -160,7 +161,7 @@ export default function GameScreen() {
   }, [currentGame?.tiles, currentGame?.players, myPlayer?.position, currentGame?.boardSize, currentGame?.currentDay, tileMemory, myTraps]);
 
   const validTargets = useMemo(() => {
-    if (!myPlayer || !currentGame) return new Set<number>();
+    if (!myPlayer || !currentGame || myPlayer.position == null || currentGame.boardSize === 0) return new Set<number>();
     const adj = getAdjacentTiles(myPlayer.position, currentGame.boardSize);
     const blockedTypes = new Set(['wall', 'void', 'water', 'storm']);
     const blocked = new Set(
@@ -399,13 +400,30 @@ export default function GameScreen() {
 
   // Lobby — waiting for players
   if (currentGame.status === 'lobby') {
+    let deadlineText: string | null = null;
+    if (currentGame.isDefault && currentGame.lobbyDeadline) {
+      const remaining = new Date(currentGame.lobbyDeadline).getTime() - Date.now();
+      if (remaining > 0) {
+        const mins = Math.ceil(remaining / 60000);
+        deadlineText = mins > 60 ? `Starts in ${Math.floor(mins / 60)}h ${mins % 60}m` : `Starts in ${mins}m`;
+      }
+    }
+
     return (
       <View style={styles.container}>
         <View style={styles.lobbyOverlay}>
-          <Text style={styles.lobbyTitle}>Waiting for Players</Text>
+          <Text style={styles.lobbyTitle}>
+            {currentGame.isDefault ? 'Daily Game' : 'Waiting for Players'}
+          </Text>
           <Text style={styles.lobbyCount}>
             {currentGame.players.length}/{currentGame.maxPlayers} joined
           </Text>
+          {deadlineText && (
+            <Text style={styles.lobbyDeadline}>{deadlineText}</Text>
+          )}
+          {currentGame.isDefault && currentGame.players.length < 4 && (
+            <Text style={styles.lobbyHint}>Needs at least 4 players to start</Text>
+          )}
           {currentGame.players.map((p) => (
             <Text key={p.id} style={[styles.lobbyPlayer, { color: p.color }]}>
               {p.name}
@@ -606,7 +624,18 @@ const styles = StyleSheet.create({
   lobbyCount: {
     color: COLORS.textSecondary,
     fontSize: 16,
-    marginBottom: 16,
+    marginBottom: 8,
+  },
+  lobbyDeadline: {
+    color: COLORS.gold,
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  lobbyHint: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    marginBottom: 12,
   },
   lobbyPlayer: {
     fontSize: 16,
