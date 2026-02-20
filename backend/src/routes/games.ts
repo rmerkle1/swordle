@@ -60,7 +60,10 @@ async function checkAndDeductCoins(playerId: number): Promise<{ coinCost: number
   const p = playerRes.rows[0];
 
   const today = new Date().toISOString().slice(0, 10);
-  const isNewDay = p.last_game_date !== today;
+  const lastDate = p.last_game_date instanceof Date
+    ? p.last_game_date.toISOString().slice(0, 10)
+    : p.last_game_date;
+  const isNewDay = lastDate !== today;
   const gamesToday = isNewDay ? 0 : p.games_today;
   const coinCost = gamesToday === 0 ? 0 : EXTRA_GAME_COST;
 
