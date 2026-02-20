@@ -10,6 +10,7 @@ import playersRouter from './routes/players';
 import adminRouter from './routes/admin';
 import { setIO, socketPlayerMap } from './socket';
 import { processExpiredDeadlines } from './services/deadlineProcessor';
+import { ensureDefaultLobbyExists, processDefaultLobbies } from './services/defaultGameManager';
 
 dotenv.config();
 
@@ -72,7 +73,7 @@ const CLEANUP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 async function cleanupStaleLobbies() {
   try {
     const result = await query(
-      `DELETE FROM games WHERE status = 'lobby' AND created_at < NOW() - INTERVAL '1 hour' RETURNING id`
+      `DELETE FROM games WHERE status = 'lobby' AND is_default = FALSE AND created_at < NOW() - INTERVAL '1 hour' RETURNING id`
     );
     if (result.rows.length > 0) {
       console.log(`Cleaned up ${result.rows.length} stale lobby game(s)`);
@@ -91,8 +92,14 @@ async function start() {
     await cleanupStaleLobbies();
     setInterval(cleanupStaleLobbies, CLEANUP_INTERVAL_MS);
 
+    // Ensure a default lobby always exists
+    await ensureDefaultLobbyExists();
+
     // Check for expired move deadlines every 60 seconds
     setInterval(processExpiredDeadlines, 60_000);
+
+    // Process default lobby deadlines every 60 seconds
+    setInterval(processDefaultLobbies, 60_000);
   } catch (err) {
     console.error('Failed to start server:', err);
     process.exit(1);

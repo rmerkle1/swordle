@@ -229,6 +229,12 @@ export const MOCK_GAMES: Game[] = [
     tiles: board,
     players: mockPlayers,
     events: mockEvents,
+    isDefault: false,
+    currentPlayers: PLAYER_COUNT,
+    reservedSlots: 0,
+    hasPasscode: false,
+    moveDeadlineHour: 0,
+    mapTheme: 'default',
   },
   {
     id: 'game-2',
@@ -239,6 +245,12 @@ export const MOCK_GAMES: Game[] = [
     tiles: board,
     players: [mockPlayers[0], mockPlayers[1]],
     events: [],
+    isDefault: false,
+    currentPlayers: 2,
+    reservedSlots: 0,
+    hasPasscode: false,
+    moveDeadlineHour: 0,
+    mapTheme: 'default',
   },
   {
     id: 'game-3',
@@ -250,6 +262,12 @@ export const MOCK_GAMES: Game[] = [
     players: mockPlayers.map((p, i) => ({ ...p, isAlive: i === 0 })),
     events: [{ id: 'e6', day: 12, message: 'You won the game!', playerId: 'player-1', playerName: 'You', playerColor: PLAYER_COLORS[0] }],
     winner: 'player-1',
+    isDefault: false,
+    currentPlayers: PLAYER_COUNT,
+    reservedSlots: 0,
+    hasPasscode: false,
+    moveDeadlineHour: 0,
+    mapTheme: 'default',
   },
 ];
 

@@ -12,7 +12,12 @@ function chebyshevDistance(index1: number, index2: number, boardSize: number): n
 const STORM_START_DAY = 5;
 const STORM_MIN_TILES = 4;
 
-const PLAYER_COLORS = ['#e94560', '#3498db', '#2ecc71', '#f39c12'];
+const PLAYER_COLORS = [
+  '#e94560', '#3498db', '#2ecc71', '#f39c12',
+  '#9b59b6', '#1abc9c', '#e67e22', '#34495e',
+  '#e91e63', '#00bcd4', '#8bc34a', '#ff5722',
+  '#607d8b', '#ffeb3b', '#795548', '#673ab7',
+];
 
 const BUILD_COSTS: Record<string, { wood: number; metal: number }> = {
   wall: { wood: 2, metal: 1 },
@@ -542,12 +547,12 @@ function toGamePlayer(row: any): GamePlayer {
   };
 }
 
-function toMapTile(row: any): MapTile {
+function toMapTile(row: any, boardSize: number): MapTile {
   return {
     index: row.tile_index,
     type: row.tile_type as TileType,
-    x: row.x ?? row.tile_index % 64,
-    y: row.y ?? Math.floor(row.tile_index / 64),
+    x: row.x ?? row.tile_index % boardSize,
+    y: row.y ?? Math.floor(row.tile_index / boardSize),
   };
 }
 
@@ -811,6 +816,13 @@ export async function getFullGame(gameId: number): Promise<Game> {
     players: gamePlayers,
     events,
     winner: winnerGpRes && winnerGpRes.rows.length > 0 ? String(winnerGpRes.rows[0].id) : undefined,
+    isDefault: g.is_default ?? false,
+    currentPlayers: g.current_players ?? 0,
+    reservedSlots: g.reserved_slots ?? 0,
+    hasPasscode: !!g.passcode,
+    lobbyDeadline: g.lobby_deadline ? new Date(g.lobby_deadline).toISOString() : undefined,
+    moveDeadlineHour: g.move_deadline_utc_hour ?? 0,
+    mapTheme: g.map_theme ?? 'default',
   };
 }
 

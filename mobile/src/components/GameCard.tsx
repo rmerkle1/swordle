@@ -17,22 +17,50 @@ interface Props {
 }
 
 export default function GameCard({ game, onPress, onJoin }: Props) {
-  const badge = STATUS_BADGE[game.status];
+  const isDefault = game.isDefault;
+  const badge = isDefault && game.status === 'lobby'
+    ? { bg: COLORS.accent, label: 'Daily' }
+    : STATUS_BADGE[game.status];
+
+  const hasReserved = game.reservedSlots > 0;
+  const openSlots = game.maxPlayers - (game.reservedSlots || 0);
+
+  // Countdown text for default lobbies
+  let countdownText: string | null = null;
+  if (isDefault && game.status === 'lobby' && game.lobbyDeadline) {
+    const remaining = new Date(game.lobbyDeadline).getTime() - Date.now();
+    if (remaining > 0) {
+      const mins = Math.ceil(remaining / 60000);
+      countdownText = mins > 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
+    }
+  }
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.topRow}>
-        <View style={[styles.badge, { backgroundColor: badge.bg }]}>
-          <Text style={styles.badgeText}>{badge.label}</Text>
+        <View style={styles.badgeRow}>
+          <View style={[styles.badge, { backgroundColor: badge.bg }]}>
+            <Text style={styles.badgeText}>{badge.label}</Text>
+          </View>
+          {game.hasPasscode && (
+            <Text style={styles.lockIcon}>L</Text>
+          )}
         </View>
         {game.status === 'active' && (
           <Text style={styles.day}>Day {game.currentDay}</Text>
         )}
+        {countdownText && (
+          <Text style={styles.countdown}>{countdownText}</Text>
+        )}
       </View>
-      <Text style={styles.title}>Game {game.id.split('-')[1]}</Text>
+      <Text style={styles.title}>Game {game.id}</Text>
       <View style={styles.inlineRow}>
         <Image source={UI_IMAGES.playerCount} style={styles.inlineIcon} />
-        <Text style={styles.players}> {game.players.length}/{game.maxPlayers} players</Text>
+        {hasReserved ? (
+          <Text style={styles.players}> {game.players.length}/{openSlots} open, {game.reservedSlots} reserved</Text>
+        ) : (
+          <Text style={styles.players}> {game.players.length}/{game.maxPlayers} players</Text>
+        )}
       </View>
       {game.winner && (
         <View style={styles.inlineRow}>
@@ -63,6 +91,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   badge: {
     paddingHorizontal: 10,
     paddingVertical: 3,
@@ -73,9 +106,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: 'bold',
   },
+  lockIcon: {
+    color: COLORS.gold,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
   day: {
     color: COLORS.gold,
     fontSize: 13,
+    fontWeight: '600',
+  },
+  countdown: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
     fontWeight: '600',
   },
   title: {

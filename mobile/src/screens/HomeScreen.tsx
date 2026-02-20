@@ -1,5 +1,5 @@
-import React, { useEffect, useCallback, useState } from 'react';
-import { View, Text, Image, SectionList, TouchableOpacity, StyleSheet, Alert, RefreshControl, Modal, TextInput } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, Image, SectionList, TouchableOpacity, StyleSheet, Alert, RefreshControl, Modal } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,11 +17,8 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export default function HomeScreen() {
   const navigation = useNavigation<Nav>();
   const { games, setGames } = useGameStore();
-  const { playerId } = usePlayerStore();
+  const { playerId, coins } = usePlayerStore();
   const [refreshing, setRefreshing] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createMaxPlayers, setCreateMaxPlayers] = useState(4);
-  const [createDeadlineHour, setCreateDeadlineHour] = useState(0);
   const [showClassPicker, setShowClassPicker] = useState(false);
   const [pendingJoinGameId, setPendingJoinGameId] = useState<string | null>(null);
 
@@ -51,18 +48,6 @@ export default function HomeScreen() {
     }, [])
   );
 
-  const handleCreateGame = async () => {
-    if (!playerId) return;
-    try {
-      const game = await api.createGame(createMaxPlayers, playerId, createDeadlineHour);
-      setShowCreateModal(false);
-      setGames([game, ...games]);
-      navigation.navigate('Game', { gameId: game.id });
-    } catch (err) {
-      console.error('Failed to create game:', err);
-    }
-  };
-
   const handleJoinGame = async (gameId: string) => {
     if (!playerId) return;
     setPendingJoinGameId(gameId);
@@ -73,10 +58,13 @@ export default function HomeScreen() {
     if (!playerId || !pendingJoinGameId) return;
     setShowClassPicker(false);
     try {
-      const { game } = await api.joinGame(pendingJoinGameId, playerId, fighterClass);
+      const result = await api.joinGame(pendingJoinGameId, playerId, fighterClass);
+      if (result.coinsRemaining !== undefined) {
+        usePlayerStore.setState({ coins: result.coinsRemaining });
+      }
       refreshGames();
-      if (game.status === 'active') {
-        navigation.navigate('Game', { gameId: game.id });
+      if (result.game.status === 'active') {
+        navigation.navigate('Game', { gameId: result.game.id });
       }
     } catch (err: any) {
       Alert.alert('Join Failed', err.message || 'Could not join game');
@@ -84,9 +72,13 @@ export default function HomeScreen() {
     setPendingJoinGameId(null);
   };
 
+  const defaultLobbies = games.filter((g) => g.isDefault && g.status === 'lobby');
+  const customLobbies = games.filter((g) => !g.isDefault && g.status === 'lobby');
+
   const sections = [
+    { title: 'Daily Game', data: defaultLobbies },
     { title: 'Active Games', data: games.filter((g) => g.status === 'active') },
-    { title: 'Lobby', data: games.filter((g) => g.status === 'lobby') },
+    { title: 'Lobby', data: customLobbies },
     { title: 'Completed', data: games.filter((g) => g.status === 'completed') },
   ].filter((s) => s.data.length > 0);
 
@@ -95,6 +87,7 @@ export default function HomeScreen() {
       <View style={styles.headingRow}>
         <Image source={UI_IMAGES.logo} style={styles.headingLogo} />
         <Text style={styles.heading}> Swordle</Text>
+        <Text style={styles.coinBalance}>{coins} coins</Text>
       </View>
       <SectionList
         sections={sections}
@@ -118,51 +111,9 @@ export default function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={COLORS.textSecondary} />
         }
       />
-      <TouchableOpacity style={styles.createBtn} onPress={() => setShowCreateModal(true)}>
+      <TouchableOpacity style={styles.createBtn} onPress={() => navigation.navigate('CreateGame')}>
         <Text style={styles.createTxt}>+ Create Game</Text>
       </TouchableOpacity>
-
-      {/* Create Game Modal */}
-      <Modal visible={showCreateModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Create Game</Text>
-
-            <Text style={styles.modalLabel}>Players</Text>
-            <View style={styles.modalRow}>
-              {[2, 3, 4].map((n) => (
-                <TouchableOpacity
-                  key={n}
-                  style={[styles.optionBtn, createMaxPlayers === n && styles.optionBtnActive]}
-                  onPress={() => setCreateMaxPlayers(n)}
-                >
-                  <Text style={[styles.optionTxt, createMaxPlayers === n && styles.optionTxtActive]}>{n}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.modalLabel}>Deadline Hour (UTC)</Text>
-            <View style={styles.modalRow}>
-              <TouchableOpacity style={styles.stepperBtn} onPress={() => setCreateDeadlineHour(Math.max(0, createDeadlineHour - 1))}>
-                <Text style={styles.stepperTxt}>-</Text>
-              </TouchableOpacity>
-              <Text style={styles.stepperValue}>{createDeadlineHour}</Text>
-              <TouchableOpacity style={styles.stepperBtn} onPress={() => setCreateDeadlineHour(Math.min(23, createDeadlineHour + 1))}>
-                <Text style={styles.stepperTxt}>+</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowCreateModal(false)}>
-                <Text style={styles.modalCancelTxt}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={handleCreateGame}>
-                <Text style={styles.modalConfirmTxt}>Create</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       {/* Class Picker Modal */}
       <Modal visible={showClassPicker} transparent animationType="fade">
@@ -221,6 +172,13 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
   },
+  coinBalance: {
+    color: COLORS.gold,
+    fontSize: 14,
+    fontWeight: '600',
+    position: 'absolute',
+    right: 16,
+  },
   sectionTitle: {
     color: COLORS.textSecondary,
     fontSize: 13,
@@ -273,65 +231,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
   },
-  modalLabel: {
-    color: COLORS.textSecondary,
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  modalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    gap: 12,
-  },
-  optionBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.textSecondary,
-  },
-  optionBtnActive: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
-  },
-  optionTxt: {
-    color: COLORS.textSecondary,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  optionTxtActive: {
-    color: '#fff',
-  },
-  stepperBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.textSecondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  stepperTxt: {
-    color: COLORS.text,
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  stepperValue: {
-    color: COLORS.text,
-    fontSize: 20,
-    fontWeight: 'bold',
-    minWidth: 40,
-    textAlign: 'center',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
   modalCancel: {
     paddingVertical: 12,
     paddingHorizontal: 24,
@@ -346,17 +245,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  modalConfirm: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    backgroundColor: COLORS.accent,
-  },
-  modalConfirmTxt: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
   classBtn: {
     padding: 14,
     borderRadius: 10,
@@ -367,26 +255,12 @@ const styles = StyleSheet.create({
     borderColor: COLORS.accent,
     backgroundColor: COLORS.accent + '22',
   },
-  classBtnLocked: {
-    borderColor: COLORS.textSecondary + '44',
-    opacity: 0.5,
-  },
   classBtnTitle: {
     color: COLORS.text,
     fontSize: 16,
     fontWeight: '700',
   },
   classBtnDesc: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  classBtnTitleLocked: {
-    color: COLORS.textSecondary,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  classBtnDescLocked: {
     color: COLORS.textSecondary,
     fontSize: 12,
     marginTop: 2,

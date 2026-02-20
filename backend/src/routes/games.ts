@@ -2,12 +2,18 @@ import { Router, Request, Response } from 'express';
 import { query } from '../config/database';
 import { generateMap, randomSpawnPositions, seededRandom } from '../services/mapGenerator';
 import { getFullGame, getFilteredGame } from '../services/gameEngine';
+import { startDefaultGame, ensureDefaultLobbyExists } from '../services/defaultGameManager';
 import { Game } from '../types';
 import { emitGameUpdate, emitGamesList } from '../socket';
 
 const router = Router();
 
-const PLAYER_COLORS = ['#e94560', '#3498db', '#2ecc71', '#f39c12'];
+const PLAYER_COLORS = [
+  '#e94560', '#3498db', '#2ecc71', '#f39c12',
+  '#9b59b6', '#1abc9c', '#e67e22', '#34495e',
+  '#e91e63', '#00bcd4', '#8bc34a', '#ff5722',
+  '#607d8b', '#ffeb3b', '#795548', '#673ab7',
+];
 
 // GET / — list games
 router.get('/', async (_req: Request, res: Response) => {
@@ -46,14 +52,54 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
+const EXTRA_GAME_COST = 50;
+
+async function checkAndDeductCoins(playerId: number): Promise<{ coinCost: number; coinsRemaining: number } | { error: string; required: number; have: number }> {
+  const playerRes = await query('SELECT coins, last_game_date, games_today FROM players WHERE id = $1', [playerId]);
+  if (playerRes.rows.length === 0) return { error: 'Player not found', required: 0, have: 0 };
+  const p = playerRes.rows[0];
+
+  const today = new Date().toISOString().slice(0, 10);
+  const isNewDay = p.last_game_date !== today;
+  const gamesToday = isNewDay ? 0 : p.games_today;
+  const coinCost = gamesToday === 0 ? 0 : EXTRA_GAME_COST;
+
+  if (coinCost > 0 && p.coins < coinCost) {
+    return { error: 'Insufficient coins', required: coinCost, have: p.coins };
+  }
+
+  await query(
+    `UPDATE players SET coins = coins - $1, last_game_date = $2, games_today = $3 WHERE id = $4`,
+    [coinCost, today, gamesToday + 1, playerId]
+  );
+
+  return { coinCost, coinsRemaining: p.coins - coinCost };
+}
+
 // POST / — create game
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { maxPlayers = 4, creatorId, moveDeadlineHour } = req.body;
+    const { maxPlayers = 4, creatorId, moveDeadlineHour, fighterClass: rawClass, passcode, reservedSlots = 0, mapTheme = 'default' } = req.body;
     if (!creatorId) {
       res.status(400).json({ error: 'creatorId is required' });
       return;
     }
+
+    if (!Number.isInteger(maxPlayers) || maxPlayers < 2 || maxPlayers > 16) {
+      res.status(400).json({ error: 'maxPlayers must be between 2 and 16' });
+      return;
+    }
+
+    const validReserved = Number.isInteger(reservedSlots) && reservedSlots >= 0 && reservedSlots < maxPlayers ? reservedSlots : 0;
+    if (validReserved > 0 && !passcode) {
+      res.status(400).json({ error: 'Passcode is required when reserving slots' });
+      return;
+    }
+
+    // Validate fighter class
+    const validClasses = ['knight', 'archer', 'cavalry', 'mage'];
+    const fighterClass = rawClass && validClasses.includes(rawClass) ? rawClass : 'knight';
+    const weaponTier = fighterClass === 'cavalry' ? 0 : 1;
 
     // Verify player exists
     const playerRes = await query('SELECT * FROM players WHERE id = $1', [parseInt(creatorId, 10)]);
@@ -62,6 +108,13 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
     const player = playerRes.rows[0];
+
+    // Coin check
+    const coinResult = await checkAndDeductCoins(player.id);
+    if ('error' in coinResult) {
+      res.status(400).json(coinResult);
+      return;
+    }
 
     // Generate map
     const seed = Date.now();
@@ -74,9 +127,9 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Create game
     const gameRes = await query(
-      `INSERT INTO games (creator_pubkey, max_players, current_players, map_size, status, move_deadline_utc_hour)
-       VALUES ($1, $2, 1, $3, 'lobby', $4) RETURNING *`,
-      [player.pubkey, maxPlayers, mapSize, validDeadline]
+      `INSERT INTO games (creator_pubkey, max_players, current_players, map_size, status, move_deadline_utc_hour, is_default, passcode, reserved_slots, map_theme)
+       VALUES ($1, $2, 1, $3, 'lobby', $4, FALSE, $5, $6, $7) RETURNING *`,
+      [player.pubkey, maxPlayers, mapSize, validDeadline, passcode || null, validReserved, mapTheme]
     );
     const gameId = gameRes.rows[0].id;
 
@@ -92,21 +145,19 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Auto-join creator
-    const rand = seededRandom(seed);
-    // Need to consume same random calls as generateMap did to get deterministic spawns
     const spawnRand = seededRandom(seed + 1);
     const spawns = randomSpawnPositions(tiles, maxPlayers, spawnRand);
     const spawnPosition = spawns[0];
 
     await query(
-      `INSERT INTO game_players (game_id, player_id, player_pubkey, display_name, color, starting_position, current_position)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [gameId, player.id, player.pubkey, player.username, PLAYER_COLORS[0], spawnPosition, spawnPosition]
+      `INSERT INTO game_players (game_id, player_id, player_pubkey, display_name, color, fighter_class, weapon_tier, starting_position, current_position)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [gameId, player.id, player.pubkey, player.username, PLAYER_COLORS[0], fighterClass, weaponTier, spawnPosition, spawnPosition]
     );
 
     const game = await getFullGame(gameId);
     emitGamesList();
-    res.status(201).json(game);
+    res.status(201).json({ ...game, coinCost: coinResult.coinCost, coinsRemaining: coinResult.coinsRemaining });
   } catch (err: any) {
     console.error('Games route error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
@@ -122,7 +173,7 @@ router.post('/:id/join', async (req: Request, res: Response) => {
       return;
     }
 
-    const { playerId, fighterClass: rawClass } = req.body;
+    const { playerId, fighterClass: rawClass, passcode: joinPasscode } = req.body;
     if (!playerId) {
       res.status(400).json({ error: 'playerId is required' });
       return;
@@ -156,6 +207,17 @@ router.post('/:id/join', async (req: Request, res: Response) => {
       return;
     }
 
+    // Passcode check for reserved slots
+    if (gameRow.passcode && gameRow.reserved_slots > 0) {
+      const openSlots = gameRow.max_players - gameRow.reserved_slots;
+      if (gameRow.current_players >= openSlots) {
+        if (!joinPasscode || joinPasscode !== gameRow.passcode) {
+          res.status(403).json({ error: 'Passcode required for reserved slot' });
+          return;
+        }
+      }
+    }
+
     // Verify player
     const playerRes = await query('SELECT * FROM players WHERE id = $1', [parseInt(playerId, 10)]);
     if (playerRes.rows.length === 0) {
@@ -174,37 +236,55 @@ router.post('/:id/join', async (req: Request, res: Response) => {
       return;
     }
 
+    // Coin check
+    const coinResult = await checkAndDeductCoins(player.id);
+    if ('error' in coinResult) {
+      res.status(400).json(coinResult);
+      return;
+    }
+
     // Get current player count for color assignment
     const playerIndex = gameRow.current_players;
     const color = PLAYER_COLORS[playerIndex % PLAYER_COLORS.length];
 
-    // Get spawn position: pick from map tiles that aren't occupied
-    const tilesRes = await query(
-      'SELECT * FROM map_tiles WHERE game_id = $1 ORDER BY tile_index',
-      [gameId]
-    );
-    const occupiedRes = await query(
-      'SELECT current_position FROM game_players WHERE game_id = $1',
-      [gameId]
-    );
-    const occupied = new Set(occupiedRes.rows.map((r: any) => r.current_position));
+    const isDefault = gameRow.is_default === true;
 
-    const emptyTiles = tilesRes.rows.filter(
-      (t: any) => t.tile_type === 'empty' && !occupied.has(t.tile_index)
-    );
+    if (isDefault) {
+      // Default game: no map yet, insert with NULL positions
+      await query(
+        `INSERT INTO game_players (game_id, player_id, player_pubkey, display_name, color, fighter_class, weapon_tier, starting_position, current_position)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, NULL)`,
+        [gameId, player.id, player.pubkey, player.username, color, fighterClass, weaponTier]
+      );
+    } else {
+      // Custom game: pick spawn from existing map tiles
+      const tilesRes = await query(
+        'SELECT * FROM map_tiles WHERE game_id = $1 ORDER BY tile_index',
+        [gameId]
+      );
+      const occupiedRes = await query(
+        'SELECT current_position FROM game_players WHERE game_id = $1',
+        [gameId]
+      );
+      const occupied = new Set(occupiedRes.rows.map((r: any) => r.current_position));
 
-    if (emptyTiles.length === 0) {
-      res.status(400).json({ error: 'No available spawn positions' });
-      return;
+      const emptyTiles = tilesRes.rows.filter(
+        (t: any) => t.tile_type === 'empty' && !occupied.has(t.tile_index)
+      );
+
+      if (emptyTiles.length === 0) {
+        res.status(400).json({ error: 'No available spawn positions' });
+        return;
+      }
+
+      const spawnTile = emptyTiles[Math.floor(Math.random() * emptyTiles.length)];
+
+      await query(
+        `INSERT INTO game_players (game_id, player_id, player_pubkey, display_name, color, fighter_class, weapon_tier, starting_position, current_position)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [gameId, player.id, player.pubkey, player.username, color, fighterClass, weaponTier, spawnTile.tile_index, spawnTile.tile_index]
+      );
     }
-
-    const spawnTile = emptyTiles[Math.floor(Math.random() * emptyTiles.length)];
-
-    await query(
-      `INSERT INTO game_players (game_id, player_id, player_pubkey, display_name, color, fighter_class, weapon_tier, starting_position, current_position)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [gameId, player.id, player.pubkey, player.username, color, fighterClass, weaponTier, spawnTile.tile_index, spawnTile.tile_index]
-    );
 
     const newPlayerCount = gameRow.current_players + 1;
     await query(
@@ -212,13 +292,16 @@ router.post('/:id/join', async (req: Request, res: Response) => {
       [newPlayerCount, gameId]
     );
 
-    // Auto-start when full
-    if (newPlayerCount >= gameRow.max_players) {
+    if (isDefault && newPlayerCount >= gameRow.max_players) {
+      // Default game full — start immediately and create new lobby
+      await startDefaultGame(gameId);
+      await ensureDefaultLobbyExists();
+    } else if (!isDefault && newPlayerCount >= gameRow.max_players) {
+      // Custom game full — auto-start
       await query(
         `UPDATE games SET status = 'active', current_day = 1, started_at = NOW() WHERE id = $1`,
         [gameId]
       );
-      // Insert game start event
       await query(
         `INSERT INTO game_events (game_id, day, event_type, message) VALUES ($1, 1, 'move', 'Game started!')`,
         [gameId]
@@ -228,7 +311,7 @@ router.post('/:id/join', async (req: Request, res: Response) => {
     const game = await getFullGame(gameId);
     emitGameUpdate(gameId);
     emitGamesList();
-    res.json({ success: true, game });
+    res.json({ success: true, game, coinCost: coinResult.coinCost, coinsRemaining: coinResult.coinsRemaining });
   } catch (err: any) {
     console.error('Games route error:', err.message);
     res.status(500).json({ error: 'Internal server error' });

@@ -34,7 +34,12 @@ export const TILE_EMOJI: Record<TileType, string> = {
   storm: '\u{1F329}\uFE0F',
 };
 
-export const PLAYER_COLORS = ['#e94560', '#3498db', '#2ecc71', '#f39c12'];
+export const PLAYER_COLORS = [
+  '#e94560', '#3498db', '#2ecc71', '#f39c12',
+  '#9b59b6', '#1abc9c', '#e67e22', '#34495e',
+  '#e91e63', '#00bcd4', '#8bc34a', '#ff5722',
+  '#607d8b', '#ffeb3b', '#795548', '#673ab7',
+];
 
 export const ACTION_EMOJI: Record<ActionType, string> = {
   attack: '\u{2694}\uFE0F',

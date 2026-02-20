@@ -73,6 +73,13 @@ export interface Game {
   players: GamePlayer[];
   events: GameEvent[];
   winner?: string;
+  isDefault: boolean;
+  currentPlayers: number;
+  reservedSlots: number;
+  hasPasscode: boolean;
+  lobbyDeadline?: string;
+  moveDeadlineHour: number;
+  mapTheme: string;
 }
 
 export interface PlayerStats {
@@ -110,6 +117,7 @@ export type RootStackParamList = {
   Welcome: undefined;
   Main: undefined;
   Game: { gameId: string };
+  CreateGame: undefined;
 };
 
 export type BottomTabParamList = {

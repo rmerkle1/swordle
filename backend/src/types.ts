@@ -59,6 +59,13 @@ export interface Game {
   players: GamePlayer[];
   events: GameEvent[];
   winner?: string;
+  isDefault: boolean;
+  currentPlayers: number;
+  reservedSlots: number;
+  hasPasscode: boolean;
+  lobbyDeadline?: string;
+  moveDeadlineHour: number;
+  mapTheme: string;
 }
 
 export interface PlayerStats {

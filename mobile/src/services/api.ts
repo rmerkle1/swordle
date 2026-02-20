@@ -40,16 +40,16 @@ export const api = {
     return fetchJson<PlayerStats>(`${API_BASE}/players/${playerId}/stats`);
   },
 
-  async registerPlayer(name: string, pubkey: string): Promise<{ id: string; name: string; pubkey: string }> {
-    return fetchJson<{ id: string; name: string; pubkey: string }>(`${API_BASE}/players`, {
+  async registerPlayer(name: string, pubkey: string): Promise<{ id: string; name: string; pubkey: string; coins: number; gamesToday: number }> {
+    return fetchJson<{ id: string; name: string; pubkey: string; coins: number; gamesToday: number }>(`${API_BASE}/players`, {
       method: 'POST',
       body: JSON.stringify({ name, pubkey }),
     });
   },
 
-  async loginWithWallet(pubkey: string): Promise<{ id: string; name: string; pubkey: string } | null> {
+  async loginWithWallet(pubkey: string): Promise<{ id: string; name: string; pubkey: string; coins: number; gamesToday: number } | null> {
     try {
-      return await fetchJson<{ id: string; name: string; pubkey: string }>(`${API_BASE}/players/login`, {
+      return await fetchJson<{ id: string; name: string; pubkey: string; coins: number; gamesToday: number }>(`${API_BASE}/players/login`, {
         method: 'POST',
         body: JSON.stringify({ pubkey }),
       });
@@ -58,17 +58,25 @@ export const api = {
     }
   },
 
-  async createGame(maxPlayers: number, creatorId: string, moveDeadlineHour?: number): Promise<Game> {
-    return fetchJson<Game>(`${API_BASE}/games`, {
+  async createGame(options: {
+    maxPlayers: number;
+    creatorId: string;
+    moveDeadlineHour?: number;
+    fighterClass?: string;
+    passcode?: string;
+    reservedSlots?: number;
+    mapTheme?: string;
+  }): Promise<Game & { coinCost: number; coinsRemaining: number }> {
+    return fetchJson<Game & { coinCost: number; coinsRemaining: number }>(`${API_BASE}/games`, {
       method: 'POST',
-      body: JSON.stringify({ maxPlayers, creatorId, moveDeadlineHour }),
+      body: JSON.stringify(options),
     });
   },
 
-  async joinGame(gameId: string, playerId: string, fighterClass?: string): Promise<{ success: boolean; game: Game }> {
-    return fetchJson<{ success: boolean; game: Game }>(`${API_BASE}/games/${gameId}/join`, {
+  async joinGame(gameId: string, playerId: string, fighterClass?: string, passcode?: string): Promise<{ success: boolean; game: Game; coinCost: number; coinsRemaining: number }> {
+    return fetchJson<{ success: boolean; game: Game; coinCost: number; coinsRemaining: number }>(`${API_BASE}/games/${gameId}/join`, {
       method: 'POST',
-      body: JSON.stringify({ playerId, fighterClass }),
+      body: JSON.stringify({ playerId, fighterClass, passcode }),
     });
   },
 

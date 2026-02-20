@@ -8,6 +8,7 @@ import { usePlayerStore } from '../store/playerStore';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import HomeScreen from '../screens/HomeScreen';
 import GameScreen from '../screens/GameScreen';
+import CreateGameScreen from '../screens/CreateGameScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -82,6 +83,11 @@ export default function AppNavigator() {
             name="Game"
             component={GameScreen}
             options={{ title: 'Swordle' }}
+          />
+          <Stack.Screen
+            name="CreateGame"
+            component={CreateGameScreen}
+            options={{ title: 'Create Game' }}
           />
         </>
       )}

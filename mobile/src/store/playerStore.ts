@@ -14,6 +14,8 @@ interface PlayerState {
   playerName: string;
   walletAddress: string;
   stats: PlayerStats;
+  coins: number;
+  gamesToday: number;
   initialized: boolean;
   needsRegistration: boolean;
   setPlayer: (id: string, name: string) => void;
@@ -23,6 +25,7 @@ interface PlayerState {
   disconnectWallet: () => Promise<void>;
   registerPlayer: (name: string, pubkey: string) => Promise<void>;
   refreshStats: () => Promise<void>;
+  refreshCoins: () => Promise<void>;
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -30,6 +33,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   playerName: '',
   walletAddress: '',
   stats: { gamesPlayed: 0, wins: 0, winRate: 0, eliminations: 0 },
+  coins: 1000,
+  gamesToday: 0,
   initialized: false,
   needsRegistration: false,
 
@@ -52,6 +57,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
             playerId: player.id,
             playerName: player.name,
             walletAddress: savedWallet,
+            coins: player.coins ?? 1000,
+            gamesToday: player.gamesToday ?? 0,
             initialized: true,
             needsRegistration: false,
           });
@@ -101,6 +108,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       playerName: '',
       walletAddress: '',
       stats: { gamesPlayed: 0, wins: 0, winRate: 0, eliminations: 0 },
+      coins: 1000,
+      gamesToday: 0,
       needsRegistration: true,
     });
   },
@@ -111,7 +120,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     await AsyncStorage.setItem(STORAGE_KEY_ID, result.id);
     await AsyncStorage.setItem(STORAGE_KEY_NAME, result.name);
 
-    set({ playerId: result.id, playerName: result.name, needsRegistration: false });
+    set({ playerId: result.id, playerName: result.name, coins: result.coins ?? 1000, gamesToday: result.gamesToday ?? 0, needsRegistration: false });
   },
 
   refreshStats: async () => {
@@ -120,6 +129,19 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     try {
       const stats = await api.getPlayerStats(playerId);
       set({ stats });
+    } catch {
+      // silently ignore
+    }
+  },
+
+  refreshCoins: async () => {
+    const { walletAddress } = get();
+    if (!walletAddress) return;
+    try {
+      const player = await api.loginWithWallet(walletAddress);
+      if (player) {
+        set({ coins: player.coins ?? 1000, gamesToday: player.gamesToday ?? 0 });
+      }
     } catch {
       // silently ignore
     }

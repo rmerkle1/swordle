@@ -36,6 +36,8 @@ router.post('/', async (req: Request, res: Response) => {
       id: String(player.id),
       name: player.username,
       pubkey: player.pubkey,
+      coins: player.coins ?? 1000,
+      gamesToday: player.games_today ?? 0,
     });
   } catch (err: any) {
     console.error('Players route error:', err.message);
@@ -67,6 +69,8 @@ router.post('/login', async (req: Request, res: Response) => {
       id: String(player.id),
       name: player.username,
       pubkey: player.pubkey,
+      coins: player.coins ?? 1000,
+      gamesToday: player.games_today ?? 0,
     });
   } catch (err: any) {
     console.error('Players route error:', err.message);
