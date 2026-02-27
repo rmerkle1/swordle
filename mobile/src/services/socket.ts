@@ -1,16 +1,7 @@
 import { io as ioClient, Socket } from 'socket.io-client';
-import { Platform } from 'react-native';
-import Constants from 'expo-constants';
+import { BACKEND_URL } from '../config';
 
-function getHost(): string {
-  const debuggerHost = Constants.expoConfig?.hostUri ?? Constants.manifest2?.extra?.expoGo?.debuggerHost;
-  if (debuggerHost) {
-    return debuggerHost.split(':')[0];
-  }
-  return Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
-}
-
-const SOCKET_URL = `http://${getHost()}:3000`;
+const SOCKET_URL = BACKEND_URL;
 
 let socket: Socket | null = null;
 
