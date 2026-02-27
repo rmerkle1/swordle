@@ -48,6 +48,7 @@ export default function BattleScreen() {
   const myGames = games.filter((g) => g.players.some((p) => p.playerId === playerId));
 
   const sections = [
+    { title: 'Lobby', data: myGames.filter((g) => g.status === 'lobby') },
     { title: 'Active Games', data: myGames.filter((g) => g.status === 'active') },
     { title: 'Completed', data: myGames.filter((g) => g.status === 'completed') },
   ].filter((s) => s.data.length > 0);

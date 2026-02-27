@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { query } from '../config/database';
+import { query, pool } from '../config/database';
 import { generateMap, randomSpawnPositions, seededRandom } from '../services/mapGenerator';
 import { getFullGame, getFilteredGame } from '../services/gameEngine';
 import { startDefaultGame, ensureDefaultLobbyExists } from '../services/defaultGameManager';
@@ -128,42 +128,61 @@ router.post('/', async (req: Request, res: Response) => {
     const deadlineHour = moveDeadlineHour != null ? parseInt(moveDeadlineHour, 10) : 0;
     const validDeadline = !isNaN(deadlineHour) && deadlineHour >= 0 && deadlineHour <= 23 ? deadlineHour : 0;
 
-    // Create game
-    const gameRes = await query(
-      `INSERT INTO games (creator_pubkey, max_players, current_players, map_size, status, move_deadline_utc_hour, is_default, passcode, reserved_slots, map_theme)
-       VALUES ($1, $2, 1, $3, 'lobby', $4, FALSE, $5, $6, $7) RETURNING *`,
-      [player.pubkey, maxPlayers, mapSize, validDeadline, passcode || null, validReserved, mapTheme]
-    );
-    const gameId = gameRes.rows[0].id;
+    // Use a transaction so partial failures don't leave orphan records
+    const client = await pool.connect();
+    let gameId: number;
+    try {
+      await client.query('BEGIN');
 
-    // Insert tiles
-    for (const tile of tiles) {
-      const isTraversable = !['void', 'water', 'storm', 'wall'].includes(tile.type);
-      const isLandmark = tile.type === 'forest' || tile.type === 'mountain';
-      await query(
-        `INSERT INTO map_tiles (game_id, tile_index, tile_type, is_traversable, is_landmark)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [gameId, tile.index, tile.type, isTraversable, isLandmark]
+      // Create game
+      const gameRes = await client.query(
+        `INSERT INTO games (creator_pubkey, max_players, current_players, map_size, status, move_deadline_utc_hour, is_default, passcode, reserved_slots, map_theme)
+         VALUES ($1, $2, 1, $3, 'lobby', $4, FALSE, $5, $6, $7) RETURNING *`,
+        [player.pubkey, maxPlayers, mapSize, validDeadline, passcode || null, validReserved, mapTheme]
       );
+      gameId = gameRes.rows[0].id;
+
+      // Batch insert tiles
+      const tileValues: unknown[] = [];
+      const tileParams: string[] = [];
+      tiles.forEach((tile, i) => {
+        const isTraversable = !['void', 'water', 'storm', 'wall'].includes(tile.type);
+        const isLandmark = tile.type === 'forest' || tile.type === 'mountain';
+        const offset = i * 5;
+        tileParams.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5})`);
+        tileValues.push(gameId, tile.index, tile.type, isTraversable, isLandmark);
+      });
+      await client.query(
+        `INSERT INTO map_tiles (game_id, tile_index, tile_type, is_traversable, is_landmark)
+         VALUES ${tileParams.join(', ')}`,
+        tileValues
+      );
+
+      // Auto-join creator
+      const spawnRand = seededRandom(seed + 1);
+      const spawns = randomSpawnPositions(tiles, maxPlayers, spawnRand);
+      const spawnPosition = spawns[0];
+
+      await client.query(
+        `INSERT INTO game_players (game_id, player_id, player_pubkey, display_name, color, fighter_class, weapon_tier, starting_position, current_position)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [gameId, player.id, player.pubkey, player.username, PLAYER_COLORS[0], fighterClass, weaponTier, spawnPosition, spawnPosition]
+      );
+
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
     }
-
-    // Auto-join creator
-    const spawnRand = seededRandom(seed + 1);
-    const spawns = randomSpawnPositions(tiles, maxPlayers, spawnRand);
-    const spawnPosition = spawns[0];
-
-    await query(
-      `INSERT INTO game_players (game_id, player_id, player_pubkey, display_name, color, fighter_class, weapon_tier, starting_position, current_position)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [gameId, player.id, player.pubkey, player.username, PLAYER_COLORS[0], fighterClass, weaponTier, spawnPosition, spawnPosition]
-    );
 
     const game = await getFullGame(gameId);
     emitGamesList();
     res.status(201).json({ ...game, coinCost: coinResult.coinCost, coinsRemaining: coinResult.coinsRemaining });
   } catch (err: any) {
-    console.error('Games route error:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Create game error:', err.message, err.detail || '', err.stack);
+    res.status(500).json({ error: err.message || 'Internal server error' });
   }
 });
 

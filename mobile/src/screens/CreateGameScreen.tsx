@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
 import { COLORS } from '../constants/theme';
 import { usePlayerStore } from '../store/playerStore';
 import { api } from '../services/api';
+import { FIGHTER_IMAGES } from '../assets';
+import { FighterClass } from '../types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -118,8 +120,13 @@ export default function CreateGameScreen() {
           style={[styles.classBtn, fighterClass === c.id && styles.classBtnActive]}
           onPress={() => setFighterClass(c.id)}
         >
-          <Text style={styles.classBtnTitle}>{c.name}</Text>
-          <Text style={styles.classBtnDesc}>{c.desc}</Text>
+          <View style={styles.classBtnRow}>
+            <Image source={FIGHTER_IMAGES[c.id as FighterClass]} style={styles.classBtnImg} />
+            <View style={styles.classBtnText}>
+              <Text style={styles.classBtnTitle}>{c.name}</Text>
+              <Text style={styles.classBtnDesc}>{c.desc}</Text>
+            </View>
+          </View>
         </TouchableOpacity>
       ))}
 
@@ -135,7 +142,7 @@ export default function CreateGameScreen() {
       </View>
 
       {/* Move Deadline Hour */}
-      <Text style={styles.label}>Move Deadline Hour (UTC)</Text>
+      <Text style={styles.label}>Daily Start Time (UTC)</Text>
       <View style={styles.stepperRow}>
         <TouchableOpacity style={styles.stepperBtn} onPress={() => setDeadlineHour(Math.max(0, deadlineHour - 1))}>
           <Text style={styles.stepperTxt}>-</Text>
@@ -261,6 +268,18 @@ const styles = StyleSheet.create({
   classBtnActive: {
     borderColor: COLORS.accent,
     backgroundColor: COLORS.accent + '22',
+  },
+  classBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  classBtnImg: {
+    width: 32,
+    height: 32,
+    marginRight: 10,
+  },
+  classBtnText: {
+    flex: 1,
   },
   classBtnTitle: {
     color: COLORS.text,

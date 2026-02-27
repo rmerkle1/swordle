@@ -62,6 +62,9 @@ export default function GameCard({ game, onPress, onJoin }: Props) {
           <Text style={styles.players}> {game.players.length}/{game.maxPlayers} players</Text>
         )}
       </View>
+      {game.moveDeadlineHour != null && game.status !== 'completed' && (
+        <Text style={styles.startTime}>Daily at {game.moveDeadlineHour}:00 UTC</Text>
+      )}
       {game.winner && (
         <View style={styles.inlineRow}>
           <Image source={UI_IMAGES.winner} style={styles.inlineIcon} />
@@ -138,6 +141,11 @@ const styles = StyleSheet.create({
   players: {
     color: COLORS.textSecondary,
     fontSize: 13,
+  },
+  startTime: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
   },
   winner: {
     color: COLORS.gold,

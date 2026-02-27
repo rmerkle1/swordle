@@ -10,7 +10,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { api } from '../services/api';
 import { connectSocket, onGamesList } from '../services/socket';
 import GameCard from '../components/GameCard';
-import { UI_IMAGES } from '../assets';
+import { UI_IMAGES, FIGHTER_IMAGES } from '../assets';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -124,23 +124,43 @@ export default function ExploreScreen() {
             <Text style={styles.modalTitle}>Choose Class</Text>
 
             <TouchableOpacity style={[styles.classBtn, styles.classBtnActive]} onPress={() => confirmJoinWithClass('knight')}>
-              <Text style={styles.classBtnTitle}>Knight</Text>
-              <Text style={styles.classBtnDesc}>Melee fighter with 75% duel advantage</Text>
+              <View style={styles.classBtnRow}>
+                <Image source={FIGHTER_IMAGES.knight} style={styles.classBtnImg} />
+                <View style={styles.classBtnText}>
+                  <Text style={styles.classBtnTitle}>Knight</Text>
+                  <Text style={styles.classBtnDesc}>Melee fighter with 75% duel advantage</Text>
+                </View>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity style={[styles.classBtn, styles.classBtnActive]} onPress={() => confirmJoinWithClass('archer')}>
-              <Text style={styles.classBtnTitle}>Archer</Text>
-              <Text style={styles.classBtnDesc}>Ranged attacker targeting adjacent tiles</Text>
+              <View style={styles.classBtnRow}>
+                <Image source={FIGHTER_IMAGES.archer} style={styles.classBtnImg} />
+                <View style={styles.classBtnText}>
+                  <Text style={styles.classBtnTitle}>Archer</Text>
+                  <Text style={styles.classBtnDesc}>Ranged attacker targeting adjacent tiles</Text>
+                </View>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity style={[styles.classBtn, styles.classBtnActive]} onPress={() => confirmJoinWithClass('cavalry')}>
-              <Text style={styles.classBtnTitle}>Cavalry</Text>
-              <Text style={styles.classBtnDesc}>Can move 2 tiles per turn</Text>
+              <View style={styles.classBtnRow}>
+                <Image source={FIGHTER_IMAGES.cavalry} style={styles.classBtnImg} />
+                <View style={styles.classBtnText}>
+                  <Text style={styles.classBtnTitle}>Cavalry</Text>
+                  <Text style={styles.classBtnDesc}>Can move 2 tiles per turn</Text>
+                </View>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity style={[styles.classBtn, styles.classBtnActive]} onPress={() => confirmJoinWithClass('mage')}>
-              <Text style={styles.classBtnTitle}>Mage</Text>
-              <Text style={styles.classBtnDesc}>Area-of-effect ranged attack</Text>
+              <View style={styles.classBtnRow}>
+                <Image source={FIGHTER_IMAGES.mage} style={styles.classBtnImg} />
+                <View style={styles.classBtnText}>
+                  <Text style={styles.classBtnTitle}>Mage</Text>
+                  <Text style={styles.classBtnDesc}>Area-of-effect ranged attack</Text>
+                </View>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.modalCancel} onPress={() => { setShowClassPicker(false); setPendingJoinGameId(null); }}>
@@ -256,6 +276,18 @@ const styles = StyleSheet.create({
   classBtnActive: {
     borderColor: COLORS.accent,
     backgroundColor: COLORS.accent + '22',
+  },
+  classBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  classBtnImg: {
+    width: 32,
+    height: 32,
+    marginRight: 10,
+  },
+  classBtnText: {
+    flex: 1,
   },
   classBtnTitle: {
     color: COLORS.text,
