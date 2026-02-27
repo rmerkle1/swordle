@@ -105,6 +105,7 @@ export interface FoggedPlayer {
   name: string;
   id: string;
   isAlive: boolean;
+  fighterClass: FighterClass;
 }
 
 export interface TileMemoryEntry {
@@ -121,6 +122,13 @@ export type RootStackParamList = {
 };
 
 export type BottomTabParamList = {
-  Home: undefined;
+  Battle: undefined;
+  Explore: undefined;
   Profile: undefined;
 };
+
+export interface ClassStats {
+  games: number;
+  wins: number;
+  losses: number;
+}

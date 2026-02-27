@@ -6,7 +6,8 @@ import { RootStackParamList, BottomTabParamList } from '../types';
 import { COLORS } from '../constants/theme';
 import { usePlayerStore } from '../store/playerStore';
 import WelcomeScreen from '../screens/WelcomeScreen';
-import HomeScreen from '../screens/HomeScreen';
+import BattleScreen from '../screens/BattleScreen';
+import ExploreScreen from '../screens/HomeScreen';
 import GameScreen from '../screens/GameScreen';
 import CreateGameScreen from '../screens/CreateGameScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -15,7 +16,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<BottomTabParamList>();
 
 function TabIcon({ label, focused }: { label: string; focused: boolean }) {
-  const icons: Record<string, string> = { Home: '\u{1F3E0}', Profile: '\u{1F464}' };
+  const icons: Record<string, string> = { Battle: '\u2694\uFE0F', Explore: '\uD83D\uDD0D', Profile: '\uD83D\uDC64' };
   return (
     <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>
       {icons[label] || label}
@@ -37,7 +38,8 @@ function MainTabs() {
         tabBarIcon: ({ focused }) => <TabIcon label={route.name} focused={focused} />,
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Battle" component={BattleScreen} />
+      <Tab.Screen name="Explore" component={ExploreScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );

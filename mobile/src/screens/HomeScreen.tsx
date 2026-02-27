@@ -14,7 +14,7 @@ import { UI_IMAGES } from '../assets';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-export default function HomeScreen() {
+export default function ExploreScreen() {
   const navigation = useNavigation<Nav>();
   const { games, setGames } = useGameStore();
   const { playerId, coins } = usePlayerStore();
@@ -72,13 +72,15 @@ export default function HomeScreen() {
     setPendingJoinGameId(null);
   };
 
+  const isMyGame = (g: Game) => g.players.some((p) => p.playerId === playerId);
   const defaultLobbies = games.filter((g) => g.isDefault && g.status === 'lobby');
-  const customLobbies = games.filter((g) => !g.isDefault && g.status === 'lobby');
+  const customLobbies = games.filter((g) => !g.isDefault && g.status === 'lobby' && !isMyGame(g));
+  const activeOthers = games.filter((g) => g.status === 'active' && !isMyGame(g));
 
   const sections = [
     { title: 'Daily Game', data: defaultLobbies },
-    { title: 'Active Games', data: games.filter((g) => g.status === 'active') },
-    { title: 'Lobby', data: customLobbies },
+    { title: 'Open Lobbies', data: customLobbies },
+    { title: 'Active Games', data: activeOthers },
     { title: 'Completed', data: games.filter((g) => g.status === 'completed') },
   ].filter((s) => s.data.length > 0);
 

@@ -1,4 +1,4 @@
-import { Game, Move, PlayerStats } from '../types';
+import { Game, Move, PlayerStats, ClassStats, FighterClass } from '../types';
 import { API_BASE } from '../config';
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
@@ -96,5 +96,9 @@ export const api = {
 
   async getPendingMove(gameId: string, gamePlayerId: string): Promise<{ pendingMove: { toTile: number; action: string; buildOption: string | null; attackTarget: number | null; day: number } | null }> {
     return fetchJson(`${API_BASE}/games/${gameId}/moves/pending/${gamePlayerId}`);
+  },
+
+  async getClassStats(playerId: string): Promise<Record<FighterClass, ClassStats>> {
+    return fetchJson<Record<FighterClass, ClassStats>>(`${API_BASE}/players/${playerId}/class-stats`);
   },
 };

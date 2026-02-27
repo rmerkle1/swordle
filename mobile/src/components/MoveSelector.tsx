@@ -6,6 +6,14 @@ import { ACTION_IMAGES, BUILD_IMAGES, UI_IMAGES } from '../assets';
 
 const ACTIONS: ActionType[] = ['attack', 'defend', 'collect', 'build', 'scout'];
 
+const ACTION_COLORS: Record<ActionType, string> = {
+  attack: '#e94560',
+  defend: '#3498db',
+  collect: '#2ecc71',
+  build: '#f0c040',
+  scout: '#9b59b6',
+};
+
 interface Props {
   selectedAction: ActionType | null;
   buildOption: BuildOption | null;
@@ -90,6 +98,7 @@ export default function MoveSelector({
               key={action}
               style={[
                 styles.actionBtn,
+                { backgroundColor: ACTION_COLORS[action] + (selectedAction === action ? 'DD' : '55') },
                 selectedAction === action && styles.actionSelected,
                 disabled && styles.buildDisabled,
               ]}
@@ -255,14 +264,12 @@ const styles = StyleSheet.create({
     width: '18%',
     alignItems: 'center',
     paddingVertical: 12,
-    backgroundColor: COLORS.surfaceLight,
     borderRadius: 8,
     borderWidth: 2,
     borderColor: 'transparent',
   },
   actionSelected: {
     borderColor: COLORS.gold,
-    backgroundColor: 'rgba(240,192,64,0.15)',
   },
   actionImage: {
     width: 28,

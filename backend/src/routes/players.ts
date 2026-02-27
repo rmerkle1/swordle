@@ -111,4 +111,45 @@ router.get('/:id/stats', async (req: Request, res: Response) => {
   }
 });
 
+// GET /:id/class-stats — per-class win/loss breakdown
+router.get('/:id/class-stats', async (req: Request, res: Response) => {
+  try {
+    const playerId = parseInt(req.params.id, 10);
+    if (isNaN(playerId)) {
+      res.status(400).json({ error: 'Invalid player ID' });
+      return;
+    }
+
+    const result = await query(
+      `SELECT
+        gp.fighter_class,
+        COUNT(*)::int AS games,
+        COUNT(*) FILTER (WHERE g.winner_pubkey = gp.player_pubkey)::int AS wins
+      FROM game_players gp
+      JOIN games g ON g.id = gp.game_id AND g.status = 'completed'
+      WHERE gp.player_id = $1
+      GROUP BY gp.fighter_class`,
+      [playerId]
+    );
+
+    const allClasses = ['knight', 'archer', 'cavalry', 'mage'];
+    const stats: Record<string, { games: number; wins: number; losses: number }> = {};
+    for (const cls of allClasses) {
+      stats[cls] = { games: 0, wins: 0, losses: 0 };
+    }
+    for (const row of result.rows) {
+      stats[row.fighter_class] = {
+        games: row.games,
+        wins: row.wins,
+        losses: row.games - row.wins,
+      };
+    }
+
+    res.json(stats);
+  } catch (err: any) {
+    console.error('Players route error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

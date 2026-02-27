@@ -26,6 +26,7 @@ function buildFoggedPlayer(
       name: '???',
       id: player.id,
       isAlive: player.isAlive,
+      fighterClass: player.fighterClass,
     };
   }
   return {
@@ -34,6 +35,7 @@ function buildFoggedPlayer(
     name: player.name,
     id: player.id,
     isAlive: player.isAlive,
+    fighterClass: player.fighterClass,
   };
 }
 

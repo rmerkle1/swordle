@@ -2,7 +2,8 @@ import React from 'react';
 import { TouchableOpacity, Text, View, Image, StyleSheet } from 'react-native';
 import { FoggedTile } from '../types';
 import { TILE_COLORS, COLORS } from '../constants/theme';
-import { TILE_IMAGES } from '../assets';
+import { TILE_IMAGES, FIGHTER_IMAGES } from '../assets';
+import { FighterClass } from '../types';
 
 const FOG_COLOR = '#0a0a1e';
 
@@ -77,9 +78,11 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
         />
       )}
 
-      {/* Full visibility: colored player dot */}
+      {/* Full visibility: fighter icon with colored border */}
       {displayPlayer && displayPlayer.isAlive && !displayPlayer.isSilhouette && (
-        <View style={[styles.playerDot, { backgroundColor: displayPlayer.color }]} />
+        <View style={[styles.playerMarker, { borderColor: displayPlayer.color }]}>
+          <Image source={FIGHTER_IMAGES[displayPlayer.fighterClass]} style={styles.fighterImage} />
+        </View>
       )}
 
       {/* Partial visibility: silhouette dot with "?" */}
@@ -141,17 +144,24 @@ const styles = StyleSheet.create({
   fadedImage: {
     opacity: 0.5,
   },
-  playerDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+  playerMarker: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     borderWidth: 2,
-    borderColor: '#fff',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  fighterImage: {
+    width: 24,
+    height: 24,
   },
   silhouetteDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: '#555',
     borderWidth: 1,
     borderColor: '#888',
