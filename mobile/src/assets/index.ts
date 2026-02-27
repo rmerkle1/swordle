@@ -1,5 +1,5 @@
 import { ImageSourcePropType } from 'react-native';
-import { TileType, ActionType, BuildOption } from '../types';
+import { TileType, ActionType, BuildOption, FighterClass } from '../types';
 
 export const TILE_IMAGES: Record<TileType, ImageSourcePropType> = {
   void: require('./tiles/void.png'),
@@ -24,6 +24,13 @@ export const BUILD_IMAGES: Record<BuildOption, ImageSourcePropType> = {
   wall: require('./build/wall.png'),
   trap: require('./build/trap.png'),
   upgrade: require('./build/upgrade.png'),
+};
+
+export const FIGHTER_IMAGES: Record<FighterClass, ImageSourcePropType> = {
+  knight: require('./fighters/knight.png'),
+  archer: require('./fighters/archer.png'),
+  cavalry: require('./fighters/cavalry.png'),
+  mage: require('./fighters/mage.png'),
 };
 
 export const UI_IMAGES = {
