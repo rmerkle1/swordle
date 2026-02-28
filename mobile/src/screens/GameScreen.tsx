@@ -388,6 +388,7 @@ export default function GameScreen() {
             selectedTile={null}
             lockedTile={null}
             validTargets={new Set()}
+            myPlayerTile={myPlayer?.position ?? null}
             onTilePress={() => {}}
           />
           {currentGame.events.length > 0 && (
@@ -477,6 +478,7 @@ export default function GameScreen() {
           lockedTile={submittedMove?.toTile ?? null}
           validTargets={isEliminated ? new Set() : (isSelectingTarget ? validAttackTargets : validTargets)}
           attackTargetTiles={attackTargetTilesSet}
+          myPlayerTile={myPlayer?.position ?? null}
           onTilePress={isEliminated ? () => {} : handleTilePress}
         />
         {!isEliminated && selectedTile !== null && (

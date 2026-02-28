@@ -14,6 +14,7 @@ interface Props {
   isLocked: boolean;
   isValidTarget: boolean;
   isAttackTarget?: boolean;
+  isMyTile?: boolean;
   onPress: (tileIndex: number) => void;
 }
 
@@ -31,7 +32,7 @@ function blendColor(hex: string, overlay: string, opacity: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
-export default function TileCell({ foggedTile, size, isSelected, isLocked, isValidTarget, isAttackTarget = false, onPress }: Props) {
+export default function TileCell({ foggedTile, size, isSelected, isLocked, isValidTarget, isAttackTarget = false, isMyTile = false, onPress }: Props) {
   const { visibility, displayType, displayEmoji, displayPlayer } = foggedTile;
 
   // Hidden tiles render as void
@@ -44,9 +45,9 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
 
   let backgroundColor = baseColor;
   if (visibility === 'partial') {
-    backgroundColor = blendColor(baseColor, FOG_COLOR, 0.2);
+    backgroundColor = blendColor(baseColor, FOG_COLOR, 0.1);
   } else if (visibility === 'fogged') {
-    backgroundColor = blendColor(baseColor, FOG_COLOR, 0.4);
+    backgroundColor = blendColor(baseColor, FOG_COLOR, 0.2);
   }
 
   return (
@@ -65,6 +66,7 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
         isLocked && styles.locked,
         isValidTarget && styles.validTarget,
         isAttackTarget && styles.attackTarget,
+        isMyTile && styles.myTile,
       ]}
     >
       {displayType !== 'void' && (
@@ -90,6 +92,11 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
         <View style={styles.silhouetteDot}>
           <Text style={styles.silhouetteText}>?</Text>
         </View>
+      )}
+
+      {/* My tile highlight */}
+      {isMyTile && (
+        <View style={styles.myTileOverlay} pointerEvents="none" />
       )}
 
       {/* Fog overlay for fogged tiles */}
@@ -142,7 +149,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   fadedImage: {
-    opacity: 0.5,
+    opacity: 0.75,
   },
   playerMarker: {
     width: 36,
@@ -155,8 +162,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   fighterImage: {
-    width: 30,
-    height: 30,
+    width: 32,
+    height: 32,
   },
   silhouetteDot: {
     width: 28,
@@ -176,11 +183,11 @@ const styles = StyleSheet.create({
   },
   fogOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(10,10,30,0.45)',
+    backgroundColor: 'rgba(10,10,30,0.22)',
   },
   partialOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(10,10,30,0.15)',
+    backgroundColor: 'rgba(10,10,30,0.08)',
   },
   selectedOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -193,6 +200,14 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: COLORS.success,
     backgroundColor: 'rgba(46,204,113,0.2)',
+  },
+  myTile: {
+    borderWidth: 2,
+    borderColor: 'rgba(240,192,64,0.5)',
+  },
+  myTileOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(240,192,64,0.15)',
   },
   attackTarget: {
     borderWidth: 2,
