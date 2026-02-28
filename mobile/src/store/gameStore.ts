@@ -13,6 +13,7 @@ interface GameState {
   showBanner: boolean;
   tileMemory: Map<number, TileMemoryEntry>;
   myTraps: Set<number>;
+  scoutedTraps: Set<number>;
   submittedMove: SubmittedMove | null;
 
   setGames: (games: Game[]) => void;
@@ -27,6 +28,8 @@ interface GameState {
   setSubmittedMove: (move: SubmittedMove | null) => void;
   updateTileMemory: (position: number, boardSize: number, tiles: MapTile[], currentDay: number) => void;
   addMyTrap: (tileIndex: number) => void;
+  addScoutedTrap: (tileIndex: number) => void;
+  clearScoutedTrap: (tileIndex: number) => void;
 }
 
 export const useGameStore = create<GameState>((set) => ({
@@ -40,6 +43,7 @@ export const useGameStore = create<GameState>((set) => ({
   showBanner: false,
   tileMemory: new Map(),
   myTraps: new Set(),
+  scoutedTraps: new Set(),
   submittedMove: null,
 
   setGames: (games) => set({ games }),
@@ -54,6 +58,7 @@ export const useGameStore = create<GameState>((set) => ({
         attackTarget: null,
         tileMemory: new Map(),
         myTraps: new Set(),
+        scoutedTraps: new Set(),
         submittedMove: null,
       };
     }
@@ -90,6 +95,18 @@ export const useGameStore = create<GameState>((set) => ({
       const newTraps = new Set(state.myTraps);
       newTraps.add(tileIndex);
       return { myTraps: newTraps };
+    }),
+  addScoutedTrap: (tileIndex) =>
+    set((state) => {
+      const newTraps = new Set(state.scoutedTraps);
+      newTraps.add(tileIndex);
+      return { scoutedTraps: newTraps };
+    }),
+  clearScoutedTrap: (tileIndex) =>
+    set((state) => {
+      const newTraps = new Set(state.scoutedTraps);
+      newTraps.delete(tileIndex);
+      return { scoutedTraps: newTraps };
     }),
 }));
 

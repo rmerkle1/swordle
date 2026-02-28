@@ -5,6 +5,7 @@ import { COLORS, BUILD_COSTS, UPGRADE_COSTS } from '../constants/theme';
 import { ACTION_IMAGES, BUILD_IMAGES, UI_IMAGES } from '../assets';
 
 const ACTIONS: ActionType[] = ['attack', 'defend', 'collect', 'build', 'scout'];
+const LANDMARK_TILE_TYPES = new Set(['forest', 'mountain', 'water']);
 
 const ACTION_COLORS: Record<ActionType, string> = {
   attack: '#e94560',
@@ -92,7 +93,10 @@ export default function MoveSelector({
       <View style={styles.actions}>
         {ACTIONS.map((action) => {
           const canCollect = targetTileType === 'forest' || targetTileType === 'mountain';
-          const disabled = isStunned || isLocked || (action === 'collect' && !canCollect);
+          const disabled = isStunned || isLocked
+            || (action === 'collect' && !canCollect)
+            || (targetTileType === 'wall' && action !== 'attack')
+            || (action === 'build' && LANDMARK_TILE_TYPES.has(targetTileType));
           return (
             <TouchableOpacity
               key={action}

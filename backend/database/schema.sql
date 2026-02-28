@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS map_tiles (
     is_traversable BOOLEAN NOT NULL DEFAULT TRUE,
     is_landmark BOOLEAN NOT NULL DEFAULT FALSE,
     placed_by_player_id INTEGER REFERENCES game_players(id),
+    placed_day SMALLINT,
 
     UNIQUE(game_id, tile_index),
     CHECK (tile_type IN ('empty', 'forest', 'mountain', 'wall', 'trap', 'void', 'water', 'storm'))

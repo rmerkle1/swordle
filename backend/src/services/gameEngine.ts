@@ -59,11 +59,16 @@ interface ResolvedMove {
   fighterClass: FighterClass;
 }
 
+interface TrapOwner {
+  playerId: string;
+  builtDay: number;
+}
+
 interface ResolutionResult {
   updatedPlayers: GamePlayer[];
   updatedTiles: MapTile[];
   newEvents: GameEvent[];
-  trapOwners: Map<number, string>;
+  trapOwners: Map<number, TrapOwner>;
 }
 
 function isStormConnected(playable: Set<number>, boardSize: number): boolean {
@@ -100,7 +105,7 @@ export function resolveMoves(
   players: GamePlayer[],
   tiles: MapTile[],
   moves: ResolvedMove[],
-  trapOwners: Map<number, string> = new Map(),
+  trapOwners: Map<number, TrapOwner> = new Map(),
   rng: () => number = Math.random
 ): ResolutionResult {
   const events: GameEvent[] = [];
@@ -188,8 +193,19 @@ export function resolveMoves(
     }
   }
 
-  // --- 1b) Check for blocked destinations (wall/storm/void/water built since submission) ---
-  const blockedTileTypes = new Set<string>(['void', 'water', 'storm', 'wall']);
+  // Destroy walls at duel destinations
+  for (const [destTile, tileMoves] of byDest) {
+    if (tileMoves.length >= 2 && updatedTiles[destTile]?.type === 'wall') {
+      updatedTiles[destTile] = { ...updatedTiles[destTile], type: 'empty' };
+      events.push({
+        id: `ev-${day}-${eventId++}`, day,
+        message: `A wall was destroyed in the conflict at tile ${destTile}!`,
+      });
+    }
+  }
+
+  // --- 1b) Check for blocked destinations (storm/void/water built since submission, wall if not attacking) ---
+  const blockedTileTypes = new Set<string>(['void', 'water', 'storm']);
   for (const move of moves) {
     if (bumpedBack.has(move.playerId)) continue;
     const destTile = updatedTiles[move.toTile];
@@ -198,6 +214,13 @@ export function resolveMoves(
       events.push({
         id: `ev-${day}-${eventId++}`, day,
         message: `${move.playerName} can't move to a ${destTile.type} tile — blocked!`,
+        playerId: move.playerId, playerName: move.playerName, playerColor: move.playerColor,
+      });
+    } else if (destTile && destTile.type === 'wall' && move.action !== 'attack') {
+      bumpedBack.add(move.playerId);
+      events.push({
+        id: `ev-${day}-${eventId++}`, day,
+        message: `${move.playerName} can't move to a wall tile without attacking — blocked!`,
         playerId: move.playerId, playerName: move.playerName, playerColor: move.playerColor,
       });
     }
@@ -253,7 +276,16 @@ export function resolveMoves(
         }
         break;
       case 'attack':
-        // Combat resolution handled in step 2b below
+        // Destroy wall if attacking a wall tile
+        if (destTile.type === 'wall') {
+          updatedTiles[move.toTile] = { ...destTile, type: 'empty' };
+          events.push({
+            id: `ev-${day}-${eventId++}`, day,
+            message: `${move.playerName} destroyed a wall!`,
+            playerId: move.playerId, playerName: move.playerName, playerColor: move.playerColor,
+          });
+        }
+        // Other combat resolution handled in step 2b below
         break;
       case 'defend':
         events.push({
@@ -277,7 +309,7 @@ export function resolveMoves(
               });
             } else if (move.buildOption === 'trap') {
               updatedTiles[move.toTile] = { ...destTile, type: 'trap' };
-              trapOwners.set(move.toTile, move.playerId);
+              trapOwners.set(move.toTile, { playerId: move.playerId, builtDay: day });
               events.push({
                 id: `ev-${day}-${eventId++}`, day,
                 message: `${move.playerName} placed a trap`,
@@ -306,9 +338,10 @@ export function resolveMoves(
     if (!player.isAlive) continue;
     const tile = updatedTiles[player.position];
     if (tile.type === 'trap') {
-      // Skip if this player owns the trap
       const owner = trapOwners.get(player.position);
-      if (owner !== player.id) {
+      // Grace period: only safe on the build day itself
+      const isGracePeriod = owner && owner.playerId === player.id && owner.builtDay === day;
+      if (!isGracePeriod) {
         player.isStunned = true;
         updatedTiles[player.position] = { ...tile, type: 'empty' };
         trapOwners.delete(player.position);
@@ -445,6 +478,7 @@ export function resolveMoves(
 
     const adjacent = getAdjacentTiles(player.position, game.boardSize);
     for (const adjTile of adjacent) {
+      // Reveal adjacent players
       for (const other of updatedPlayers) {
         if (other.id === move.playerId || !other.isAlive) continue;
         if (other.position === adjTile) {
@@ -457,6 +491,16 @@ export function resolveMoves(
             });
           }
         }
+      }
+      // Reveal adjacent traps
+      const adjTileData = updatedTiles[adjTile];
+      if (adjTileData && adjTileData.type === 'trap') {
+        events.push({
+          id: `ev-${day}-${eventId++}`, day,
+          message: `${move.playerName} scouted a trap at tile ${adjTile}!`,
+          playerId: move.playerId, playerName: move.playerName, playerColor: move.playerColor,
+          trapRevealTile: adjTile,
+        });
       }
     }
   }
@@ -604,10 +648,13 @@ export async function processDay(gameId: number): Promise<Game> {
     }
 
     // Load trap owners
-    const trapOwners = new Map<number, string>();
+    const trapOwners = new Map<number, TrapOwner>();
     for (const row of tileRows) {
       if (row.tile_type === 'trap' && row.placed_by_player_id) {
-        trapOwners.set(row.tile_index, String(row.placed_by_player_id));
+        trapOwners.set(row.tile_index, {
+          playerId: String(row.placed_by_player_id),
+          builtDay: row.placed_day ?? 0,
+        });
       }
     }
 
@@ -669,10 +716,12 @@ export async function processDay(gameId: number): Promise<Game> {
     for (const tile of result.updatedTiles) {
       const origRow = tileRowMap.get(tile.index);
       if (origRow && origRow.tile_type !== tile.type) {
-        const placedBy = result.trapOwners.get(tile.index) ?? null;
+        const trapOwner = result.trapOwners.get(tile.index);
+        const placedBy = tile.type === 'trap' && trapOwner ? trapOwner.playerId : null;
+        const placedDay = tile.type === 'trap' && trapOwner ? trapOwner.builtDay : null;
         await client.query(
-          'UPDATE map_tiles SET tile_type = $1, is_traversable = $2, placed_by_player_id = $3 WHERE game_id = $4 AND tile_index = $5',
-          [tile.type, !['void', 'water', 'storm', 'wall'].includes(tile.type), tile.type === 'trap' ? placedBy : null, gameId, tile.index]
+          'UPDATE map_tiles SET tile_type = $1, is_traversable = $2, placed_by_player_id = $3, placed_day = $4 WHERE game_id = $5 AND tile_index = $6',
+          [tile.type, !['void', 'water', 'storm', 'wall'].includes(tile.type), placedBy, placedDay, gameId, tile.index]
         );
       }
     }
@@ -681,9 +730,9 @@ export async function processDay(gameId: number): Promise<Game> {
     for (const event of result.newEvents) {
       const gpId = event.playerId ? parseInt(event.playerId, 10) : null;
       await client.query(
-        `INSERT INTO game_events (game_id, day, event_type, message, player_id, details)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [gameId, event.day, 'move', event.message, gpId, null]
+        `INSERT INTO game_events (game_id, day, event_type, message, player_id, tile_index, details)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [gameId, event.day, 'move', event.message, gpId, event.trapRevealTile ?? null, null]
       );
     }
 
@@ -797,6 +846,7 @@ export async function getFullGame(gameId: number): Promise<Game> {
     playerId: r.player_id ? String(r.player_id) : undefined,
     playerName: r.display_name || undefined,
     playerColor: r.color || undefined,
+    trapRevealTile: r.tile_index ?? undefined,
   }));
 
   const winnerGpRes = g.winner_pubkey

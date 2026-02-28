@@ -61,6 +61,7 @@ export interface GameEvent {
   playerId?: string;
   playerName?: string;
   playerColor?: string;
+  trapRevealTile?: number;
 }
 
 export interface Game {

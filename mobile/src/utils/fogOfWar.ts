@@ -48,6 +48,7 @@ export function computeFoggedBoard(
   currentDay: number,
   tileMemory: Map<number, TileMemoryEntry>,
   myTraps: Set<number>,
+  scoutedTraps: Set<number> = new Set(),
 ): FoggedTile[] {
   const playerMap = new Map<number, GamePlayer>();
   for (const p of players) {
@@ -73,8 +74,8 @@ export function computeFoggedBoard(
       let displayType = tile.type;
       let displayEmoji = TILE_EMOJI[tile.type];
 
-      // Enemy traps show as empty
-      if (tile.type === 'trap' && !myTraps.has(tile.index)) {
+      // Enemy traps show as empty unless scouted
+      if (tile.type === 'trap' && !myTraps.has(tile.index) && !scoutedTraps.has(tile.index)) {
         displayType = 'empty';
         displayEmoji = TILE_EMOJI['empty'];
       }
@@ -91,11 +92,12 @@ export function computeFoggedBoard(
     // Distance 2: partial visibility
     if (dist === 2) {
       const isLandmark = LANDMARK_TYPES.has(tile.type);
+      const isScouted = tile.type === 'trap' && scoutedTraps.has(tile.index);
       return {
         index: tile.index,
         visibility: 'partial' as const,
-        displayType: isLandmark ? tile.type : 'empty',
-        displayEmoji: isLandmark ? TILE_EMOJI[tile.type] : '',
+        displayType: isScouted ? 'trap' : (isLandmark ? tile.type : 'empty'),
+        displayEmoji: isScouted ? TILE_EMOJI['trap'] : (isLandmark ? TILE_EMOJI[tile.type] : ''),
         displayPlayer: player ? buildFoggedPlayer(player, true) : null,
       };
     }
@@ -103,11 +105,12 @@ export function computeFoggedBoard(
     // Distance 3+: check memory
     const memory = tileMemory.get(tile.index);
     if (memory && currentDay - memory.lastFullVisibilityDay <= 3) {
+      const isScouted = tile.type === 'trap' && scoutedTraps.has(tile.index);
       return {
         index: tile.index,
         visibility: 'fogged' as const,
-        displayType: memory.rememberedType,
-        displayEmoji: TILE_EMOJI[memory.rememberedType],
+        displayType: isScouted ? 'trap' : memory.rememberedType,
+        displayEmoji: isScouted ? TILE_EMOJI['trap'] : TILE_EMOJI[memory.rememberedType],
         displayPlayer: null,
       };
     }

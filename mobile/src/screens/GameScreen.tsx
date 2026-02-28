@@ -37,8 +37,8 @@ export default function GameScreen() {
     resetMove,
     submittedMove, setSubmittedMove,
     attackTarget, setAttackTarget,
-    tileMemory, myTraps,
-    updateTileMemory, addMyTrap,
+    tileMemory, myTraps, scoutedTraps,
+    updateTileMemory, addMyTrap, addScoutedTrap, clearScoutedTrap,
   } = useGameStore();
 
   const [myGamePlayerId, setMyGamePlayerId] = useState<string | null>(null);
@@ -138,6 +138,22 @@ export default function GameScreen() {
     }).catch(() => {});
   }, [currentGame?.id, myPlayer?.id, currentGame?.status]);
 
+  // Scan events for scouted traps
+  useEffect(() => {
+    if (!currentGame || !myPlayer) return;
+    for (const event of currentGame.events) {
+      if (event.trapRevealTile != null && event.playerId === myPlayer.id) {
+        // Check if the trap tile is still a trap (not yet triggered)
+        const tile = currentGame.tiles[event.trapRevealTile];
+        if (tile && tile.type === 'trap') {
+          addScoutedTrap(event.trapRevealTile);
+        } else {
+          clearScoutedTrap(event.trapRevealTile);
+        }
+      }
+    }
+  }, [currentGame?.events, myPlayer?.id]);
+
   // Auto-expire submitted move when day changes
   useEffect(() => {
     if (submittedMove && currentGame && submittedMove.day !== currentGame.currentDay) {
@@ -157,18 +173,31 @@ export default function GameScreen() {
       currentGame.currentDay,
       tileMemory,
       myTraps,
+      scoutedTraps,
     );
-  }, [currentGame?.tiles, currentGame?.players, myPlayer?.position, currentGame?.boardSize, currentGame?.currentDay, tileMemory, myTraps]);
+  }, [currentGame?.tiles, currentGame?.players, myPlayer?.position, currentGame?.boardSize, currentGame?.currentDay, tileMemory, myTraps, scoutedTraps]);
 
   const validTargets = useMemo(() => {
     if (!myPlayer || !currentGame || myPlayer.position == null || currentGame.boardSize === 0) return new Set<number>();
-    const adj = getAdjacentTiles(myPlayer.position, currentGame.boardSize);
-    const blockedTypes = new Set(['wall', 'void', 'water', 'storm']);
+    const bs = currentGame.boardSize;
+    const adj = getAdjacentTiles(myPlayer.position, bs);
+    const blockedTypes = new Set(['void', 'water', 'storm']);
     const blocked = new Set(
       currentGame.tiles.filter((t) => blockedTypes.has(t.type)).map((t) => t.index)
     );
-    return new Set([myPlayer.position, ...adj.filter((i) => !blocked.has(i))]);
-  }, [myPlayer?.position, currentGame?.tiles, currentGame?.boardSize]);
+    const targets = new Set([myPlayer.position, ...adj.filter((i) => !blocked.has(i))]);
+    // Cavalry: also include tiles reachable in 2 steps
+    if (myPlayer.fighterClass === 'cavalry') {
+      const intermediates = getAdjacentTiles(myPlayer.position, bs);
+      for (const mid of intermediates) {
+        if (blocked.has(mid)) continue;
+        for (const dest of getAdjacentTiles(mid, bs)) {
+          if (!blocked.has(dest)) targets.add(dest);
+        }
+      }
+    }
+    return targets;
+  }, [myPlayer?.position, myPlayer?.fighterClass, currentGame?.tiles, currentGame?.boardSize]);
 
   // Valid attack targets for ranged classes
   const validAttackTargets = useMemo(() => {
@@ -209,16 +238,28 @@ export default function GameScreen() {
     return new Set<number>();
   }, [myPlayer?.fighterClass, selectedTile, currentGame?.tiles, currentGame?.boardSize]);
 
-  // Tiles to highlight as attack zone (1 for archer, up to 4 for mage)
+  const isRangedClass = myPlayer?.fighterClass === 'archer' || myPlayer?.fighterClass === 'mage';
+
+  // Tiles to highlight as attack zone
   const attackTargetTilesSet = useMemo(() => {
-    if (attackTarget == null || !myPlayer || !currentGame) return new Set<number>();
+    if (!myPlayer || !currentGame) return new Set<number>();
+    // Melee: highlight destination tile when attack is selected
+    if (pendingAction === 'attack' && selectedTile != null && !isRangedClass) {
+      return new Set([selectedTile]);
+    }
+    // Ranged selecting target: show all valid attack target tiles
+    if (pendingAction === 'attack' && isRangedClass && isSelectingTarget && attackTarget == null) {
+      return validAttackTargets;
+    }
+    // Ranged with target selected
+    if (attackTarget == null) return new Set<number>();
     if (myPlayer.fighterClass === 'archer') return new Set([attackTarget]);
     if (myPlayer.fighterClass === 'mage') {
       const bs = currentGame.boardSize;
       return new Set([attackTarget, attackTarget + 1, attackTarget + bs, attackTarget + bs + 1]);
     }
     return new Set<number>();
-  }, [attackTarget, myPlayer?.fighterClass, currentGame?.boardSize]);
+  }, [attackTarget, myPlayer?.fighterClass, currentGame?.boardSize, pendingAction, selectedTile, isRangedClass, isSelectingTarget, validAttackTargets]);
 
   const handleTilePress = useCallback((tileIndex: number) => {
     if (submittedMove && submittedMove.day === currentGame?.currentDay) return;

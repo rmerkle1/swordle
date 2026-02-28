@@ -280,8 +280,21 @@ router.post('/', async (req: Request, res: Response) => {
     );
     if (tileRes.rows.length > 0) {
       const tileType = tileRes.rows[0].tile_type;
-      if (['void', 'water', 'storm', 'wall'].includes(tileType)) {
+      if (['void', 'water', 'storm'].includes(tileType)) {
         res.status(400).json({ error: `Cannot move to ${tileType} tile` });
+        return;
+      }
+      if (tileType === 'wall' && action !== 'attack') {
+        res.status(400).json({ error: 'Can only attack wall tiles' });
+        return;
+      }
+    }
+
+    // Block build on landmark tiles
+    if (action === 'build' && tileRes.rows.length > 0) {
+      const tileType = tileRes.rows[0].tile_type;
+      if (['forest', 'mountain', 'water'].includes(tileType)) {
+        res.status(400).json({ error: `Cannot build on ${tileType} tile` });
         return;
       }
     }

@@ -268,7 +268,7 @@ describe('resolveMoves — building', () => {
     );
 
     expect(result.updatedTiles[5].type).toBe('trap');
-    expect(result.trapOwners.get(5)).toBe('1');
+    expect(result.trapOwners.get(5)).toEqual({ playerId: '1', builtDay: 2 });
   });
 
   it('upgrade increases weapon tier', () => {
@@ -292,7 +292,7 @@ describe('resolveMoves — trap effects', () => {
     const tiles = makeBoard(4);
     tiles[5] = makeTile(5, 'trap', 4);
     const p1 = makePlayer({ id: '1', position: 4 });
-    const trapOwners = new Map<number, string>([[ 5, '99' ]]); // owned by someone else
+    const trapOwners = new Map<number, { playerId: string; builtDay: number }>([[ 5, { playerId: '99', builtDay: 0 } ]]); // owned by someone else
 
     const move = makeMove(p1, 5, 'defend');
 
@@ -313,7 +313,7 @@ describe('resolveMoves — trap effects', () => {
     const tiles = makeBoard(4);
     tiles[5] = makeTile(5, 'trap', 4);
     const p1 = makePlayer({ id: '1', position: 4 });
-    const trapOwners = new Map<number, string>([[ 5, '1' ]]); // owned by self
+    const trapOwners = new Map<number, { playerId: string; builtDay: number }>([[ 5, { playerId: '1', builtDay: 2 } ]]); // owned by self, built on current day (day 2 = currentDay+1)
 
     const move = makeMove(p1, 5, 'defend');
 
