@@ -89,6 +89,11 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
         <View style={styles.myTileOverlay} pointerEvents="none" />
       )}
 
+      {/* Valid target overlay — renders on top of image */}
+      {isValidTarget && !isSelected && !isAttackTarget && (
+        <View style={styles.validTargetOverlay} pointerEvents="none" />
+      )}
+
       {/* Selection overlay — renders on top of image */}
       {isSelected && (
         <View style={styles.selectedOverlay} pointerEvents="none" />
@@ -174,5 +179,11 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: 'rgba(190,34,47,0.8)',
     backgroundColor: 'rgba(190,34,47,0.3)',
+  },
+  validTargetOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(237,213,85,0.25)',
+    borderWidth: 2,
+    borderColor: 'rgba(237,213,85,0.4)',
   },
 });

@@ -14,12 +14,13 @@ interface Props {
   attackTargetTiles?: Set<number>;
   myPlayerTile?: number | null;
   onTilePress: (tileIndex: number) => void;
+  maxHeight?: number;
 }
 
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 2.5;
 
-export default function GameBoard({ foggedTiles, boardSize, selectedTile, lockedTile, validTargets, attackTargetTiles, myPlayerTile, onTilePress }: Props) {
+export default function GameBoard({ foggedTiles, boardSize, selectedTile, lockedTile, validTargets, attackTargetTiles, myPlayerTile, onTilePress, maxHeight }: Props) {
   const { width, height } = useWindowDimensions();
   const [zoom, setZoom] = useState(1.5);
   const zoomBase = useRef(1);
@@ -84,7 +85,7 @@ export default function GameBoard({ foggedTiles, boardSize, selectedTile, locked
     });
 
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, maxHeight != null && { maxHeight }]}>
       <GestureDetector gesture={pinchGesture}>
         <View style={{ flex: 1 }}>
           <ScrollView

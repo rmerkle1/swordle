@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useCallback, useState, useRef } from 'react';
-import { View, Text, Image, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, Image, ScrollView, StyleSheet, TouchableOpacity, Alert, useWindowDimensions } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
@@ -43,6 +43,39 @@ export default function GameScreen() {
 
   const [myGamePlayerId, setMyGamePlayerId] = useState<string | null>(null);
   const [isSelectingTarget, setIsSelectingTarget] = useState(false);
+  const [deadlineRemaining, setDeadlineRemaining] = useState<string | null>(null);
+  const [deadlineUrgent, setDeadlineUrgent] = useState(false);
+  const { height: windowHeight } = useWindowDimensions();
+
+  // Move deadline countdown
+  useEffect(() => {
+    if (!currentGame || currentGame.status !== 'active' || currentGame.moveDeadlineHour == null) {
+      setDeadlineRemaining(null);
+      return;
+    }
+    const computeRemaining = () => {
+      const now = new Date();
+      const deadlineHour = currentGame.moveDeadlineHour;
+      const target = new Date(now);
+      target.setUTCHours(deadlineHour, 0, 0, 0);
+      if (target.getTime() <= now.getTime()) {
+        target.setUTCDate(target.getUTCDate() + 1);
+      }
+      const diffMs = target.getTime() - now.getTime();
+      const totalMins = Math.ceil(diffMs / 60000);
+      const hours = Math.floor(totalMins / 60);
+      const mins = totalMins % 60;
+      setDeadlineUrgent(totalMins < 60);
+      if (hours > 0) {
+        setDeadlineRemaining(`${hours}h ${mins}m remaining`);
+      } else {
+        setDeadlineRemaining(`${mins}m remaining`);
+      }
+    };
+    computeRemaining();
+    const interval = setInterval(computeRemaining, 60000);
+    return () => clearInterval(interval);
+  }, [currentGame?.status, currentGame?.moveDeadlineHour]);
 
   useEffect(() => {
     let isInitial = true;
@@ -511,6 +544,11 @@ export default function GameScreen() {
         </View>
       )}
       <PlayerStatsBar player={myPlayer} currentDay={currentGame.currentDay} />
+      {deadlineRemaining && (
+        <Text style={[styles.deadlineText, deadlineUrgent && styles.deadlineUrgent]}>
+          {deadlineRemaining}
+        </Text>
+      )}
       <ScrollView contentContainerStyle={styles.scroll}>
         <GameBoard
           foggedTiles={foggedTiles}
@@ -521,6 +559,7 @@ export default function GameScreen() {
           attackTargetTiles={attackTargetTilesSet}
           myPlayerTile={myPlayer?.position ?? null}
           onTilePress={isEliminated ? () => {} : handleTilePress}
+          maxHeight={windowHeight * 0.45}
         />
         {!isEliminated && selectedTile !== null && (
           <MoveSelector
@@ -710,5 +749,16 @@ const styles = StyleSheet.create({
   forfeitTxt: {
     color: COLORS.textSecondary,
     fontSize: 13,
+  },
+  deadlineText: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+  },
+  deadlineUrgent: {
+    color: COLORS.error,
   },
 });

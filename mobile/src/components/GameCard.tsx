@@ -14,13 +14,16 @@ interface Props {
   game: Game;
   onPress: () => void;
   onJoin?: () => void;
+  badgeOverride?: { bg: string; label: string };
 }
 
-export default function GameCard({ game, onPress, onJoin }: Props) {
+export default function GameCard({ game, onPress, onJoin, badgeOverride }: Props) {
   const isDefault = game.isDefault;
-  const badge = isDefault && game.status === 'lobby'
-    ? { bg: COLORS.accent, label: 'Daily' }
-    : STATUS_BADGE[game.status];
+  const badge = badgeOverride
+    ? badgeOverride
+    : isDefault && game.status === 'lobby'
+      ? { bg: COLORS.accent, label: 'Daily' }
+      : STATUS_BADGE[game.status];
 
   const hasReserved = game.reservedSlots > 0;
   const openSlots = game.maxPlayers - (game.reservedSlots || 0);
