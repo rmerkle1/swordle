@@ -3,6 +3,18 @@ import { TouchableOpacity, Text, View, Image, StyleSheet } from 'react-native';
 import { FoggedTile, FighterColor } from '../types';
 import { TILE_IMAGES, FIGHTER_IMAGES } from '../assets';
 
+const LEGACY_COLOR_MAP: Record<string, FighterColor> = {
+  '#e94560': 'red',
+  '#3498db': 'blue',
+  '#2ecc71': 'green',
+  '#f39c12': 'yellow',
+  '#9b59b6': 'purple',
+};
+
+function toFighterColor(color: string): FighterColor {
+  return (LEGACY_COLOR_MAP[color] || color || 'red') as FighterColor;
+}
+
 interface Props {
   foggedTile: FoggedTile;
   size: number;
@@ -59,7 +71,7 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
         {/* Full visibility: fighter image fills tile */}
         {displayPlayer && displayPlayer.isAlive && !displayPlayer.isSilhouette && (
           <Image
-            source={FIGHTER_IMAGES[displayPlayer.fighterClass][displayPlayer.color as FighterColor]}
+            source={FIGHTER_IMAGES[displayPlayer.fighterClass][toFighterColor(displayPlayer.color)]}
             style={[styles.tileImage, { width: size, height: size }]}
           />
         )}
@@ -105,14 +117,14 @@ const styles = StyleSheet.create({
   },
   selected: {
     borderWidth: 2,
-    borderColor: '#d74983',
+    borderColor: '#edd555',
   },
   locked: {
     borderWidth: 2,
     borderColor: '#88a5bb',
   },
   validTarget: {
-    backgroundColor: 'rgba(215,73,131,0.25)',
+    backgroundColor: 'rgba(237,213,85,0.25)',
   },
   tileImage: {
     position: 'absolute',
@@ -136,8 +148,8 @@ const styles = StyleSheet.create({
   selectedOverlay: {
     ...StyleSheet.absoluteFillObject,
     borderWidth: 3,
-    borderColor: '#d74983',
-    backgroundColor: 'rgba(215,73,131,0.2)',
+    borderColor: '#edd555',
+    backgroundColor: 'rgba(237,213,85,0.35)',
   },
   lockedOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -147,20 +159,20 @@ const styles = StyleSheet.create({
   },
   myTile: {
     borderWidth: 2,
-    borderColor: 'rgba(215,73,131,0.5)',
+    borderColor: 'rgba(237,213,85,0.4)',
   },
   myTileOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(215,73,131,0.15)',
+    backgroundColor: 'rgba(237,213,85,0.15)',
   },
   attackTarget: {
     borderWidth: 2,
-    borderColor: 'rgba(233,69,96,0.8)',
+    borderColor: 'rgba(190,34,47,0.8)',
   },
   attackTargetOverlay: {
     ...StyleSheet.absoluteFillObject,
     borderWidth: 3,
-    borderColor: 'rgba(233,69,96,0.8)',
-    backgroundColor: 'rgba(233,69,96,0.3)',
+    borderColor: 'rgba(190,34,47,0.8)',
+    backgroundColor: 'rgba(190,34,47,0.3)',
   },
 });

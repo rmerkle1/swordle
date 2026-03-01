@@ -3,7 +3,7 @@ import { View, Text, SectionList, StyleSheet, RefreshControl } from 'react-nativ
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types';
+import { RootStackParamList, Game } from '../types';
 import { COLORS } from '../constants/theme';
 import { useGameStore } from '../store/gameStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -46,11 +46,15 @@ export default function BattleScreen() {
   );
 
   const myGames = games.filter((g) => g.players.some((p) => p.playerId === playerId));
+  const myPlayer = (g: Game) => g.players.find((p) => p.playerId === playerId);
 
   const sections = [
     { title: 'Lobby', data: myGames.filter((g) => g.status === 'lobby') },
-    { title: 'Active Games', data: myGames.filter((g) => g.status === 'active') },
-    { title: 'Completed', data: myGames.filter((g) => g.status === 'completed') },
+    { title: 'Active Games', data: myGames.filter((g) => g.status === 'active' && myPlayer(g)?.isAlive !== false) },
+    { title: 'Battle History', data: [
+      ...myGames.filter((g) => g.status === 'active' && myPlayer(g)?.isAlive === false),
+      ...myGames.filter((g) => g.status === 'completed'),
+    ]},
   ].filter((s) => s.data.length > 0);
 
   return (
