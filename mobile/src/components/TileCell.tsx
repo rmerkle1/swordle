@@ -1,7 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, View, Image, StyleSheet } from 'react-native';
 import { FoggedTile, FighterColor } from '../types';
-import { TILE_IMAGES, FIGHTER_IMAGES } from '../assets';
+import { TILE_IMAGES, FIGHTER_IMAGES, UI_IMAGES } from '../assets';
 
 const LEGACY_COLOR_MAP: Record<string, FighterColor> = {
   '#e94560': 'red',
@@ -76,11 +76,12 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
           />
         )}
 
-        {/* Partial visibility: silhouette dot with "?" */}
+        {/* Partial visibility: silhouette image */}
         {displayPlayer && displayPlayer.isAlive && displayPlayer.isSilhouette && (
-          <View style={styles.silhouetteDot}>
-            <Text style={styles.silhouetteText}>?</Text>
-          </View>
+          <Image
+            source={UI_IMAGES.silhouette}
+            style={[styles.tileImage, { width: size, height: size }]}
+          />
         )}
       </View>
 

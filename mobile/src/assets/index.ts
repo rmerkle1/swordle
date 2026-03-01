@@ -67,4 +67,5 @@ export const UI_IMAGES = {
   lock: require('./ui/lock.png') as ImageSourcePropType,
   stunned: require('./ui/stunned.png') as ImageSourcePropType,
   checkmark: require('./ui/checkmark.png') as ImageSourcePropType,
+  silhouette: require('./ui/silhouette.png') as ImageSourcePropType,
 };
