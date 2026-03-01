@@ -34,7 +34,7 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
     return <View style={{ width: size, height: size }} />;
   }
 
-  const nonInteractive = displayType === 'water' || displayType === 'storm';
+  const nonInteractive = (displayType === 'water' || displayType === 'storm') && !isAttackTarget;
 
   // Fog = opacity on the entire cell content
   const cellOpacity = visibility === 'full' ? 1.0 : 0.5;
@@ -57,6 +57,7 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
         isMyTile && styles.myTile,
       ]}
     >
+      {/* Tile background with fog opacity */}
       <View style={{ opacity: cellOpacity, width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
         {displayType !== 'void' && (
           <Image
@@ -67,45 +68,45 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
             ]}
           />
         )}
-
-        {/* Full visibility: fighter image fills tile */}
-        {displayPlayer && displayPlayer.isAlive && !displayPlayer.isSilhouette && (
-          <Image
-            source={FIGHTER_IMAGES[displayPlayer.fighterClass][toFighterColor(displayPlayer.color)]}
-            style={[styles.tileImage, { width: size, height: size }]}
-          />
-        )}
-
-        {/* Partial visibility: silhouette image */}
-        {displayPlayer && displayPlayer.isAlive && displayPlayer.isSilhouette && (
-          <Image
-            source={UI_IMAGES.silhouette}
-            style={[styles.tileImage, { width: size, height: size }]}
-          />
-        )}
       </View>
 
-      {/* My tile highlight */}
+      {/* My tile highlight — behind fighter */}
       {isMyTile && (
         <View style={styles.myTileOverlay} pointerEvents="none" />
       )}
 
-      {/* Valid target overlay — renders on top of image */}
+      {/* Valid target overlay — behind fighter */}
       {isValidTarget && !isSelected && !isAttackTarget && (
         <View style={styles.validTargetOverlay} pointerEvents="none" />
       )}
 
-      {/* Selection overlay — renders on top of image */}
+      {/* Full visibility: fighter image fills tile — on top of highlights */}
+      {displayPlayer && displayPlayer.isAlive && !displayPlayer.isSilhouette && (
+        <Image
+          source={FIGHTER_IMAGES[displayPlayer.fighterClass][toFighterColor(displayPlayer.color)]}
+          style={[styles.tileImage, { width: size, height: size, opacity: cellOpacity }]}
+        />
+      )}
+
+      {/* Partial visibility: silhouette image — on top of highlights */}
+      {displayPlayer && displayPlayer.isAlive && displayPlayer.isSilhouette && (
+        <Image
+          source={UI_IMAGES.silhouette}
+          style={[styles.tileImage, { width: size, height: size, opacity: cellOpacity }]}
+        />
+      )}
+
+      {/* Selection overlay — on top of everything */}
       {isSelected && (
         <View style={styles.selectedOverlay} pointerEvents="none" />
       )}
 
-      {/* Locked move overlay — renders on top of image */}
+      {/* Locked move overlay — on top of everything */}
       {isLocked && (
         <View style={styles.lockedOverlay} pointerEvents="none" />
       )}
 
-      {/* Attack target overlay */}
+      {/* Attack target overlay — on top of everything */}
       {isAttackTarget && (
         <View style={styles.attackTargetOverlay} pointerEvents="none" />
       )}

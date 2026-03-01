@@ -555,7 +555,7 @@ export default function GameScreen() {
           boardSize={currentGame.boardSize}
           selectedTile={isEliminated ? null : selectedTile}
           lockedTile={submittedMove?.toTile ?? null}
-          validTargets={isEliminated ? new Set() : (isSelectingTarget ? validAttackTargets : validTargets)}
+          validTargets={isEliminated ? new Set() : (isSelectingTarget ? validAttackTargets : (selectedTile !== null ? new Set() : validTargets))}
           attackTargetTiles={attackTargetTilesSet}
           myPlayerTile={myPlayer?.position ?? null}
           onTilePress={isEliminated ? () => {} : handleTilePress}
@@ -594,7 +594,7 @@ export default function GameScreen() {
             onSelectBuild={setBuildOption}
             onSubmit={handleSubmit}
             onCancel={resetMove}
-            onChangeMoveRequest={handleChangeMove}
+
           />
         )}
         {currentGame.events.length > 0 && (

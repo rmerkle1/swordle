@@ -15,6 +15,14 @@ const ACTION_COLORS: Record<ActionType, string> = {
   scout: '#9b59b6',
 };
 
+const ACTION_HIGHLIGHT_COLORS: Record<ActionType, string> = {
+  attack: '#ff6b84',
+  defend: '#5bb8f0',
+  collect: '#50e88c',
+  build: '#f5d46a',
+  scout: '#b87dd4',
+};
+
 interface Props {
   selectedAction: ActionType | null;
   buildOption: BuildOption | null;
@@ -103,7 +111,7 @@ export default function MoveSelector({
               style={[
                 styles.actionBtn,
                 { backgroundColor: ACTION_COLORS[action] + (selectedAction === action ? 'DD' : '55') },
-                selectedAction === action && styles.actionSelected,
+                selectedAction === action && { borderColor: ACTION_HIGHLIGHT_COLORS[action] },
                 disabled && styles.buildDisabled,
               ]}
               disabled={disabled}
@@ -272,9 +280,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  actionSelected: {
-    borderColor: COLORS.gold,
-  },
+  actionSelected: {},
   actionImage: {
     width: 28,
     height: 28,
@@ -287,7 +293,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   actionLabelSelected: {
-    color: COLORS.gold,
+    color: '#fff',
   },
   buildMenu: {
     marginBottom: 16,
