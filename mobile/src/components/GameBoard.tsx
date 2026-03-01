@@ -85,7 +85,7 @@ export default function GameBoard({ foggedTiles, boardSize, selectedTile, locked
     });
 
   return (
-    <View style={[styles.wrapper, maxHeight != null && { maxHeight }]}>
+    <View style={[styles.wrapper, maxHeight != null && { height: maxHeight }]}>
       <GestureDetector gesture={pinchGesture}>
         <View style={{ flex: 1 }}>
           <ScrollView
