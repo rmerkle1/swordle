@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, ActivityIndicator, View } from 'react-native';
+import { Image, ActivityIndicator, View } from 'react-native';
 import { RootStackParamList, BottomTabParamList } from '../types';
 import { COLORS } from '../constants/theme';
+import { UI_IMAGES } from '../assets';
 import { usePlayerStore } from '../store/playerStore';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import BattleScreen from '../screens/BattleScreen';
@@ -15,12 +16,18 @@ import ProfileScreen from '../screens/ProfileScreen';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<BottomTabParamList>();
 
+const TAB_ICONS: Record<string, any> = {
+  Battle: UI_IMAGES.tabBattle,
+  Explore: UI_IMAGES.tabExplore,
+  Profile: UI_IMAGES.tabProfile,
+};
+
 function TabIcon({ label, focused }: { label: string; focused: boolean }) {
-  const icons: Record<string, string> = { Battle: '\u2694\uFE0F', Explore: '\uD83D\uDD0D', Profile: '\uD83D\uDC64' };
   return (
-    <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>
-      {icons[label] || label}
-    </Text>
+    <Image
+      source={TAB_ICONS[label]}
+      style={{ width: 24, height: 24, opacity: focused ? 1 : 0.5 }}
+    />
   );
 }
 
