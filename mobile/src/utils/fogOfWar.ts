@@ -22,7 +22,7 @@ function buildFoggedPlayer(
   if (isSilhouette) {
     return {
       isSilhouette: true,
-      color: '#888',
+      color: 'red',
       name: '???',
       id: player.id,
       isAlive: player.isAlive,

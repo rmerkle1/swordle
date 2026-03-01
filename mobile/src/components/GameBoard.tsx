@@ -99,7 +99,7 @@ export default function GameBoard({ foggedTiles, boardSize, selectedTile, locked
               showsVerticalScrollIndicator={false}
               nestedScrollEnabled
             >
-              <View style={[styles.board, { width: gridWidth, backgroundColor: '#000' }]}>
+              <View style={[styles.board, { width: gridWidth, backgroundColor: '#101011' }]}>
                 {foggedTiles.map((ft) => (
                   <TileCell
                     key={ft.index}
@@ -124,7 +124,7 @@ export default function GameBoard({ foggedTiles, boardSize, selectedTile, locked
 
 const styles = StyleSheet.create({
   wrapper: {
-    backgroundColor: '#000',
+    backgroundColor: '#101011',
     marginHorizontal: 4,
     borderRadius: 8,
     overflow: 'hidden',

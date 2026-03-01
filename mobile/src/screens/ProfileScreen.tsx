@@ -79,7 +79,7 @@ export default function ProfileScreen() {
           const s = classStats[cls];
           return (
             <View key={cls} style={styles.fighterCard}>
-              <Image source={FIGHTER_IMAGES[cls]} style={styles.fighterImage} />
+              <Image source={FIGHTER_IMAGES[cls].red} style={styles.fighterImage} />
               <Text style={styles.fighterName}>
                 {cls.charAt(0).toUpperCase() + cls.slice(1)}
               </Text>

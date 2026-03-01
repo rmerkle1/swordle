@@ -1,5 +1,5 @@
 import { ImageSourcePropType } from 'react-native';
-import { TileType, ActionType, BuildOption, FighterClass } from '../types';
+import { TileType, ActionType, BuildOption, FighterClass, FighterColor } from '../types';
 
 export const TILE_IMAGES: Record<TileType, ImageSourcePropType> = {
   void: require('./tiles/void.png'),
@@ -26,11 +26,35 @@ export const BUILD_IMAGES: Record<BuildOption, ImageSourcePropType> = {
   upgrade: require('./build/upgrade.png'),
 };
 
-export const FIGHTER_IMAGES: Record<FighterClass, ImageSourcePropType> = {
-  knight: require('./fighters/knight.png'),
-  archer: require('./fighters/archer.png'),
-  cavalry: require('./fighters/cavalry.png'),
-  mage: require('./fighters/mage.png'),
+export const FIGHTER_IMAGES: Record<FighterClass, Record<FighterColor, ImageSourcePropType>> = {
+  knight: {
+    red: require('./fighters/knight_red.png'),
+    blue: require('./fighters/knight_blue.png'),
+    yellow: require('./fighters/knight_yellow.png'),
+    purple: require('./fighters/knight_purple.png'),
+    green: require('./fighters/knight_green.png'),
+  },
+  archer: {
+    red: require('./fighters/archer_red.png'),
+    blue: require('./fighters/archer_blue.png'),
+    yellow: require('./fighters/archer_yellow.png'),
+    purple: require('./fighters/archer_purple.png'),
+    green: require('./fighters/archer_green.png'),
+  },
+  cavalry: {
+    red: require('./fighters/cavalry_red.png'),
+    blue: require('./fighters/cavalry_blue.png'),
+    yellow: require('./fighters/cavalry_yellow.png'),
+    purple: require('./fighters/cavalry_purple.png'),
+    green: require('./fighters/cavalry_green.png'),
+  },
+  mage: {
+    red: require('./fighters/mage_red.png'),
+    blue: require('./fighters/mage_blue.png'),
+    yellow: require('./fighters/mage_yellow.png'),
+    purple: require('./fighters/mage_purple.png'),
+    green: require('./fighters/mage_green.png'),
+  },
 };
 
 export const UI_IMAGES = {

@@ -12,12 +12,7 @@ function chebyshevDistance(index1: number, index2: number, boardSize: number): n
 const STORM_START_DAY = 5;
 const STORM_MIN_TILES = 4;
 
-const PLAYER_COLORS = [
-  '#e94560', '#3498db', '#2ecc71', '#f39c12',
-  '#9b59b6', '#1abc9c', '#e67e22', '#34495e',
-  '#e91e63', '#00bcd4', '#8bc34a', '#ff5722',
-  '#607d8b', '#ffeb3b', '#795548', '#673ab7',
-];
+const FIGHTER_COLORS = ['red', 'blue', 'yellow', 'purple', 'green'];
 
 const BUILD_COSTS: Record<string, { wood: number; metal: number }> = {
   wall: { wood: 2, metal: 1 },
@@ -579,7 +574,7 @@ function toGamePlayer(row: any): GamePlayer {
     playerId: String(row.player_id),
     name: row.display_name || row.player_pubkey,
     position: row.current_position,
-    color: row.color || PLAYER_COLORS[0],
+    color: row.color || FIGHTER_COLORS[0],
     wood: row.wood,
     metal: row.metal,
     weaponTier: row.weapon_tier,
@@ -671,7 +666,7 @@ export async function processDay(gameId: number): Promise<Game> {
       playerId: String(r.game_player_id),
       gamePlayerId: r.game_player_id,
       playerName: r.display_name || r.player_pubkey,
-      playerColor: r.color || PLAYER_COLORS[0],
+      playerColor: r.color || FIGHTER_COLORS[0],
       fromTile: players.find((p) => p.id === String(r.game_player_id))?.position ?? 0,
       toTile: r.destination,
       action: r.action as ActionType,

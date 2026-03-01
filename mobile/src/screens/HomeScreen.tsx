@@ -125,7 +125,7 @@ export default function ExploreScreen() {
 
             <TouchableOpacity style={[styles.classBtn, styles.classBtnActive]} onPress={() => confirmJoinWithClass('knight')}>
               <View style={styles.classBtnRow}>
-                <Image source={FIGHTER_IMAGES.knight} style={styles.classBtnImg} />
+                <Image source={FIGHTER_IMAGES.knight.red} style={styles.classBtnImg} />
                 <View style={styles.classBtnText}>
                   <Text style={styles.classBtnTitle}>Knight</Text>
                   <Text style={styles.classBtnDesc}>Melee fighter with 75% duel advantage</Text>
@@ -135,7 +135,7 @@ export default function ExploreScreen() {
 
             <TouchableOpacity style={[styles.classBtn, styles.classBtnActive]} onPress={() => confirmJoinWithClass('archer')}>
               <View style={styles.classBtnRow}>
-                <Image source={FIGHTER_IMAGES.archer} style={styles.classBtnImg} />
+                <Image source={FIGHTER_IMAGES.archer.red} style={styles.classBtnImg} />
                 <View style={styles.classBtnText}>
                   <Text style={styles.classBtnTitle}>Archer</Text>
                   <Text style={styles.classBtnDesc}>Ranged attacker targeting adjacent tiles</Text>
@@ -145,7 +145,7 @@ export default function ExploreScreen() {
 
             <TouchableOpacity style={[styles.classBtn, styles.classBtnActive]} onPress={() => confirmJoinWithClass('cavalry')}>
               <View style={styles.classBtnRow}>
-                <Image source={FIGHTER_IMAGES.cavalry} style={styles.classBtnImg} />
+                <Image source={FIGHTER_IMAGES.cavalry.red} style={styles.classBtnImg} />
                 <View style={styles.classBtnText}>
                   <Text style={styles.classBtnTitle}>Cavalry</Text>
                   <Text style={styles.classBtnDesc}>Can move 2 tiles per turn</Text>
@@ -155,7 +155,7 @@ export default function ExploreScreen() {
 
             <TouchableOpacity style={[styles.classBtn, styles.classBtnActive]} onPress={() => confirmJoinWithClass('mage')}>
               <View style={styles.classBtnRow}>
-                <Image source={FIGHTER_IMAGES.mage} style={styles.classBtnImg} />
+                <Image source={FIGHTER_IMAGES.mage.red} style={styles.classBtnImg} />
                 <View style={styles.classBtnText}>
                   <Text style={styles.classBtnTitle}>Mage</Text>
                   <Text style={styles.classBtnDesc}>Area-of-effect ranged attack</Text>

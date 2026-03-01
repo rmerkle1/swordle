@@ -1,26 +1,15 @@
 import { TileType, ActionType, BuildOption } from '../types';
 
 export const COLORS = {
-  background: '#1a1a2e',
-  surface: '#16213e',
-  surfaceLight: '#0f3460',
-  text: '#ffffff',
-  textSecondary: '#a0a0b0',
-  accent: '#e94560',
-  gold: '#f0c040',
-  success: '#2ecc71',
+  background: '#101011',
+  surface: '#1c1c1e',
+  surfaceLight: '#2c2c2e',
+  text: '#f4f0eb',
+  textSecondary: '#a1a79d',
+  accent: '#d74983',
+  gold: '#d74983',
+  success: '#88a5bb',
   error: '#dc3545',
-};
-
-export const TILE_COLORS: Record<TileType, string> = {
-  void: 'transparent',
-  empty: '#2d2d4e',
-  forest: '#2d6a4f',
-  mountain: '#6c757d',
-  wall: '#4a3728',
-  trap: '#dc3545',
-  water: '#1a5276',
-  storm: '#5b2c6f',
 };
 
 export const TILE_EMOJI: Record<TileType, string> = {
@@ -34,12 +23,7 @@ export const TILE_EMOJI: Record<TileType, string> = {
   storm: '\u{1F329}\uFE0F',
 };
 
-export const PLAYER_COLORS = [
-  '#e94560', '#3498db', '#2ecc71', '#f39c12',
-  '#9b59b6', '#1abc9c', '#e67e22', '#34495e',
-  '#e91e63', '#00bcd4', '#8bc34a', '#ff5722',
-  '#607d8b', '#ffeb3b', '#795548', '#673ab7',
-];
+export const PLAYER_COLORS = ['red', 'blue', 'yellow', 'purple', 'green'];
 
 export const ACTION_EMOJI: Record<ActionType, string> = {
   attack: '\u{2694}\uFE0F',

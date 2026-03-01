@@ -121,7 +121,7 @@ export default function CreateGameScreen() {
           onPress={() => setFighterClass(c.id)}
         >
           <View style={styles.classBtnRow}>
-            <Image source={FIGHTER_IMAGES[c.id as FighterClass]} style={styles.classBtnImg} />
+            <Image source={FIGHTER_IMAGES[c.id as FighterClass].red} style={styles.classBtnImg} />
             <View style={styles.classBtnText}>
               <Text style={styles.classBtnTitle}>{c.name}</Text>
               <Text style={styles.classBtnDesc}>{c.desc}</Text>

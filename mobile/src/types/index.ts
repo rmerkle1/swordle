@@ -6,6 +6,8 @@ export type BuildOption = 'wall' | 'trap' | 'upgrade';
 
 export type FighterClass = 'knight' | 'archer' | 'cavalry' | 'mage';
 
+export type FighterColor = 'red' | 'blue' | 'yellow' | 'purple' | 'green';
+
 export interface SubmittedMove {
   toTile: number;
   action: ActionType;

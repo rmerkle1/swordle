@@ -1,11 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, View, Image, StyleSheet } from 'react-native';
-import { FoggedTile } from '../types';
-import { TILE_COLORS, COLORS } from '../constants/theme';
+import { FoggedTile, FighterColor } from '../types';
 import { TILE_IMAGES, FIGHTER_IMAGES } from '../assets';
-import { FighterClass } from '../types';
-
-const FOG_COLOR = '#0a0a1e';
 
 interface Props {
   foggedTile: FoggedTile;
@@ -18,20 +14,6 @@ interface Props {
   onPress: (tileIndex: number) => void;
 }
 
-function blendColor(hex: string, overlay: string, opacity: number): string {
-  const parse = (h: string) => [
-    parseInt(h.slice(1, 3), 16),
-    parseInt(h.slice(3, 5), 16),
-    parseInt(h.slice(5, 7), 16),
-  ];
-  const [r1, g1, b1] = parse(hex);
-  const [r2, g2, b2] = parse(overlay);
-  const r = Math.round(r1 * (1 - opacity) + r2 * opacity);
-  const g = Math.round(g1 * (1 - opacity) + g2 * opacity);
-  const b = Math.round(b1 * (1 - opacity) + b2 * opacity);
-  return `rgb(${r},${g},${b})`;
-}
-
 export default function TileCell({ foggedTile, size, isSelected, isLocked, isValidTarget, isAttackTarget = false, isMyTile = false, onPress }: Props) {
   const { visibility, displayType, displayEmoji, displayPlayer } = foggedTile;
 
@@ -40,15 +22,10 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
     return <View style={{ width: size, height: size }} />;
   }
 
-  const baseColor = TILE_COLORS[displayType] || TILE_COLORS.empty;
   const nonInteractive = displayType === 'water' || displayType === 'storm';
 
-  let backgroundColor = baseColor;
-  if (visibility === 'partial') {
-    backgroundColor = blendColor(baseColor, FOG_COLOR, 0.1);
-  } else if (visibility === 'fogged') {
-    backgroundColor = blendColor(baseColor, FOG_COLOR, 0.2);
-  }
+  // Fog = opacity on the entire cell content
+  const cellOpacity = visibility === 'full' ? 1.0 : 0.5;
 
   return (
     <TouchableOpacity
@@ -60,7 +37,6 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
         {
           width: size,
           height: size,
-          backgroundColor,
         },
         isSelected && styles.selected,
         isLocked && styles.locked,
@@ -69,44 +45,36 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
         isMyTile && styles.myTile,
       ]}
     >
-      {displayType !== 'void' && (
-        <Image
-          source={TILE_IMAGES[displayType]}
-          style={[
-            styles.tileImage,
-            { width: size, height: size },
-            visibility === 'fogged' && styles.fadedImage,
-          ]}
-        />
-      )}
+      <View style={{ opacity: cellOpacity, width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+        {displayType !== 'void' && (
+          <Image
+            source={TILE_IMAGES[displayType]}
+            style={[
+              styles.tileImage,
+              { width: size, height: size },
+            ]}
+          />
+        )}
 
-      {/* Full visibility: fighter icon with colored border */}
-      {displayPlayer && displayPlayer.isAlive && !displayPlayer.isSilhouette && (
-        <View style={[styles.playerMarker, { borderColor: displayPlayer.color }]}>
-          <Image source={FIGHTER_IMAGES[displayPlayer.fighterClass]} style={styles.fighterImage} />
-        </View>
-      )}
+        {/* Full visibility: fighter image fills tile */}
+        {displayPlayer && displayPlayer.isAlive && !displayPlayer.isSilhouette && (
+          <Image
+            source={FIGHTER_IMAGES[displayPlayer.fighterClass][displayPlayer.color as FighterColor]}
+            style={[styles.tileImage, { width: size, height: size }]}
+          />
+        )}
 
-      {/* Partial visibility: silhouette dot with "?" */}
-      {displayPlayer && displayPlayer.isAlive && displayPlayer.isSilhouette && (
-        <View style={styles.silhouetteDot}>
-          <Text style={styles.silhouetteText}>?</Text>
-        </View>
-      )}
+        {/* Partial visibility: silhouette dot with "?" */}
+        {displayPlayer && displayPlayer.isAlive && displayPlayer.isSilhouette && (
+          <View style={styles.silhouetteDot}>
+            <Text style={styles.silhouetteText}>?</Text>
+          </View>
+        )}
+      </View>
 
       {/* My tile highlight */}
       {isMyTile && (
         <View style={styles.myTileOverlay} pointerEvents="none" />
-      )}
-
-      {/* Fog overlay for fogged tiles */}
-      {visibility === 'fogged' && (
-        <View style={styles.fogOverlay} pointerEvents="none" />
-      )}
-
-      {/* Partial overlay */}
-      {visibility === 'partial' && (
-        <View style={styles.partialOverlay} pointerEvents="none" />
       )}
 
       {/* Selection overlay — renders on top of image */}
@@ -132,38 +100,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'transparent',
   },
   selected: {
     borderWidth: 2,
-    borderColor: COLORS.gold,
+    borderColor: '#d74983',
   },
   locked: {
     borderWidth: 2,
-    borderColor: COLORS.success,
+    borderColor: '#88a5bb',
   },
   validTarget: {
-    backgroundColor: 'rgba(240,192,64,0.25)',
+    backgroundColor: 'rgba(215,73,131,0.25)',
   },
   tileImage: {
     position: 'absolute',
-  },
-  fadedImage: {
-    opacity: 0.75,
-  },
-  playerMarker: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 2,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  fighterImage: {
-    width: 32,
-    height: 32,
   },
   silhouetteDot: {
     width: 28,
@@ -181,33 +133,25 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     lineHeight: 12,
   },
-  fogOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(10,10,30,0.22)',
-  },
-  partialOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(10,10,30,0.08)',
-  },
   selectedOverlay: {
     ...StyleSheet.absoluteFillObject,
     borderWidth: 3,
-    borderColor: COLORS.gold,
-    backgroundColor: 'rgba(240,192,64,0.2)',
+    borderColor: '#d74983',
+    backgroundColor: 'rgba(215,73,131,0.2)',
   },
   lockedOverlay: {
     ...StyleSheet.absoluteFillObject,
     borderWidth: 3,
-    borderColor: COLORS.success,
-    backgroundColor: 'rgba(46,204,113,0.2)',
+    borderColor: '#88a5bb',
+    backgroundColor: 'rgba(136,165,187,0.2)',
   },
   myTile: {
     borderWidth: 2,
-    borderColor: 'rgba(240,192,64,0.5)',
+    borderColor: 'rgba(215,73,131,0.5)',
   },
   myTileOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(240,192,64,0.15)',
+    backgroundColor: 'rgba(215,73,131,0.15)',
   },
   attackTarget: {
     borderWidth: 2,

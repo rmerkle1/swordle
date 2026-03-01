@@ -8,12 +8,7 @@ import { emitGameUpdate, emitGamesList } from '../socket';
 
 const router = Router();
 
-const PLAYER_COLORS = [
-  '#e94560', '#3498db', '#2ecc71', '#f39c12',
-  '#9b59b6', '#1abc9c', '#e67e22', '#34495e',
-  '#e91e63', '#00bcd4', '#8bc34a', '#ff5722',
-  '#607d8b', '#ffeb3b', '#795548', '#673ab7',
-];
+const FIGHTER_COLORS = ['red', 'blue', 'yellow', 'purple', 'green'];
 
 // GET / — list games
 router.get('/', async (_req: Request, res: Response) => {
@@ -166,7 +161,7 @@ router.post('/', async (req: Request, res: Response) => {
       await client.query(
         `INSERT INTO game_players (game_id, player_id, player_pubkey, display_name, color, fighter_class, weapon_tier, starting_position, current_position)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [gameId, player.id, player.pubkey, player.username, PLAYER_COLORS[0], fighterClass, weaponTier, spawnPosition, spawnPosition]
+        [gameId, player.id, player.pubkey, player.username, FIGHTER_COLORS[Math.floor(Math.random() * FIGHTER_COLORS.length)], fighterClass, weaponTier, spawnPosition, spawnPosition]
       );
 
       await client.query('COMMIT');
@@ -265,9 +260,8 @@ router.post('/:id/join', async (req: Request, res: Response) => {
       return;
     }
 
-    // Get current player count for color assignment
-    const playerIndex = gameRow.current_players;
-    const color = PLAYER_COLORS[playerIndex % PLAYER_COLORS.length];
+    // Random color assignment
+    const color = FIGHTER_COLORS[Math.floor(Math.random() * FIGHTER_COLORS.length)];
 
     const isDefault = gameRow.is_default === true;
 
