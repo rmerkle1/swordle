@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   buildSelected: {
-    borderColor: COLORS.gold,
+    borderColor: '#f0c040',
     backgroundColor: 'rgba(240,192,64,0.15)',
   },
   buildDisabled: {
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   buildLabelSelected: {
-    color: COLORS.gold,
+    color: '#fff',
   },
   buildLabelDisabled: {
     color: COLORS.textSecondary,

@@ -75,7 +75,7 @@ export default function BattleScreen() {
             } else if (item.status === 'completed') {
               badgeOverride = { bg: COLORS.error, label: 'Defeat' };
             } else if (item.status === 'active' && me && me.isAlive === false) {
-              badgeOverride = { bg: COLORS.textSecondary, label: 'Defeated' };
+              badgeOverride = { bg: COLORS.error, label: 'Defeat' };
             }
           }
           return (
