@@ -2,8 +2,14 @@ import { query } from '../config/database';
 import { processDay } from './gameEngine';
 import { emitGameUpdate, emitGamesList } from '../socket';
 
+// Track which games have already been processed during today's deadline window.
+// Maps gameId -> UTC date string ("YYYY-MM-DD") when it was last auto-processed.
+const processedToday = new Map<number, string>();
+
 export async function processExpiredDeadlines(): Promise<void> {
-  const currentHour = new Date().getUTCHours();
+  const now = new Date();
+  const currentHour = now.getUTCHours();
+  const todayUTC = now.toISOString().slice(0, 10);
 
   // Find active games whose deadline hour matches the current UTC hour
   const gamesRes = await query(
@@ -14,6 +20,9 @@ export async function processExpiredDeadlines(): Promise<void> {
   for (const game of gamesRes.rows) {
     const gameId = game.id;
     const nextDay = game.current_day + 1;
+
+    // Only process each game once per calendar day
+    if (processedToday.get(gameId) === todayUTC) continue;
 
     try {
       // Find alive players who haven't submitted for the next day
@@ -54,10 +63,16 @@ export async function processExpiredDeadlines(): Promise<void> {
         await processDay(gameId);
         emitGameUpdate(gameId);
         emitGamesList();
+        processedToday.set(gameId, todayUTC);
         console.log(`Deadline processor: auto-processed day ${nextDay} for game ${gameId}`);
       }
     } catch (err) {
       console.error(`Deadline processor: failed for game ${gameId}:`, err);
     }
+  }
+
+  // Cleanup stale entries from previous days
+  for (const [id, date] of processedToday) {
+    if (date !== todayUTC) processedToday.delete(id);
   }
 }
