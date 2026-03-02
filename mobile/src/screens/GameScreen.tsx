@@ -555,7 +555,7 @@ export default function GameScreen() {
           boardSize={currentGame.boardSize}
           selectedTile={isEliminated ? null : selectedTile}
           lockedTile={submittedMove?.toTile ?? null}
-          validTargets={isEliminated ? new Set() : (isSelectingTarget ? validAttackTargets : (selectedTile !== null ? new Set() : validTargets))}
+          validTargets={isEliminated || submittedMove ? new Set() : (isSelectingTarget ? validAttackTargets : (selectedTile !== null ? new Set() : validTargets))}
           attackTargetTiles={attackTargetTilesSet}
           myPlayerTile={myPlayer?.position ?? null}
           onTilePress={isEliminated ? () => {} : handleTilePress}

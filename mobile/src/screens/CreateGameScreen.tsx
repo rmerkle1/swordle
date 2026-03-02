@@ -147,7 +147,7 @@ export default function CreateGameScreen() {
         <TouchableOpacity style={styles.stepperBtn} onPress={() => setDeadlineHour(Math.max(0, deadlineHour - 1))}>
           <Text style={styles.stepperTxt}>-</Text>
         </TouchableOpacity>
-        <Text style={styles.stepperValue}>{deadlineHour}</Text>
+        <Text style={styles.stepperValue}>{String(deadlineHour).padStart(2, '0')}:00 UTC</Text>
         <TouchableOpacity style={styles.stepperBtn} onPress={() => setDeadlineHour(Math.min(23, deadlineHour + 1))}>
           <Text style={styles.stepperTxt}>+</Text>
         </TouchableOpacity>
