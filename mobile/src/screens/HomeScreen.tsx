@@ -80,8 +80,6 @@ export default function ExploreScreen() {
   const sections = [
     { title: 'Daily Game', data: defaultLobbies },
     { title: 'Open Lobbies', data: customLobbies },
-    { title: 'Active Games', data: activeOthers },
-    { title: 'Completed', data: games.filter((g) => g.status === 'completed') },
   ].filter((s) => s.data.length > 0);
 
   return (
