@@ -52,6 +52,34 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 const EXTRA_GAME_COST = 50;
 
+// $SKR fee constants (in raw token units, 6 decimals — so 10 SKR = 10_000_000)
+const SKR_DECIMALS = 1_000_000;
+const SKR_CONCURRENT_GAME_FEE = parseInt(process.env.SKR_CONCURRENT_GAME_FEE || '10', 10) * SKR_DECIMALS;
+const SKR_CUSTOM_GAME_FEE = parseInt(process.env.SKR_CUSTOM_GAME_FEE || '100', 10) * SKR_DECIMALS;
+
+/**
+ * Count how many active (non-completed) games the player is alive in.
+ */
+async function countActiveGames(playerId: number): Promise<number> {
+  const res = await query(
+    `SELECT COUNT(*) as count FROM game_players gp
+     JOIN games g ON gp.game_id = g.id
+     WHERE gp.player_id = $1 AND gp.status = 'active' AND g.status = 'active'`,
+    [playerId]
+  );
+  return parseInt(res.rows[0].count, 10);
+}
+
+/**
+ * Determine the $SKR fee for joining a game.
+ * - Free if the player has no other active games
+ * - SKR_CONCURRENT_GAME_FEE (10 $SKR) if they're alive in another active game
+ */
+async function getJoinFee(playerId: number): Promise<number> {
+  const activeCount = await countActiveGames(playerId);
+  return activeCount > 0 ? SKR_CONCURRENT_GAME_FEE : 0;
+}
+
 export async function checkAndDeductCoins(playerId: number): Promise<{ coinCost: number; coinsRemaining: number } | { error: string; required: number; have: number }> {
   const playerRes = await query('SELECT coins, last_game_date, games_today FROM players WHERE id = $1', [playerId]);
   if (playerRes.rows.length === 0) return { error: 'Player not found', required: 0, have: 0 };
@@ -116,17 +144,27 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       }
     }
 
-    // $SKR balance check (if ENTRY_FEE_AMOUNT is set)
-    const entryFee = parseInt(process.env.ENTRY_FEE_AMOUNT || '0', 10);
-    if (entryFee > 0 && req.playerPubkey) {
+    // $SKR fee: custom games cost SKR_CUSTOM_GAME_FEE (100 $SKR)
+    // Plus concurrent game fee if already in an active game
+    if (req.playerPubkey && process.env.SKR_TOKEN_MINT) {
+      const concurrentFee = await getJoinFee(player.id);
+      const totalFee = SKR_CUSTOM_GAME_FEE + concurrentFee;
       const balance = await getSKRBalance(req.playerPubkey);
-      if (balance < entryFee) {
-        res.status(400).json({ error: 'Insufficient $SKR balance', required: entryFee, have: balance });
+      if (balance < totalFee) {
+        res.status(400).json({
+          error: 'Insufficient $SKR balance',
+          required: totalFee / SKR_DECIMALS,
+          have: balance / SKR_DECIMALS,
+          breakdown: {
+            customGameFee: SKR_CUSTOM_GAME_FEE / SKR_DECIMALS,
+            concurrentGameFee: concurrentFee / SKR_DECIMALS,
+          },
+        });
         return;
       }
     }
 
-    // Coin check
+    // DB coin check (legacy system, kept for backward compat)
     const coinResult = await checkAndDeductCoins(player.id);
     if ('error' in coinResult) {
       res.status(400).json(coinResult);
@@ -278,17 +316,23 @@ router.post('/:id/join', requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    // $SKR balance check
-    const entryFee = parseInt(process.env.ENTRY_FEE_AMOUNT || '0', 10);
-    if (entryFee > 0 && req.playerPubkey) {
-      const balance = await getSKRBalance(req.playerPubkey);
-      if (balance < entryFee) {
-        res.status(400).json({ error: 'Insufficient $SKR balance', required: entryFee, have: balance });
-        return;
+    // $SKR fee: free first game, 10 $SKR if already in an active game
+    if (req.playerPubkey && process.env.SKR_TOKEN_MINT) {
+      const fee = await getJoinFee(player.id);
+      if (fee > 0) {
+        const balance = await getSKRBalance(req.playerPubkey);
+        if (balance < fee) {
+          res.status(400).json({
+            error: 'Insufficient $SKR balance — you are already in an active game',
+            required: fee / SKR_DECIMALS,
+            have: balance / SKR_DECIMALS,
+          });
+          return;
+        }
       }
     }
 
-    // Coin check
+    // DB coin check (legacy)
     const coinResult = await checkAndDeductCoins(player.id);
     if ('error' in coinResult) {
       res.status(400).json(coinResult);
@@ -474,21 +518,33 @@ router.post('/:id/confirm-entry', requireAuth, async (req: Request, res: Respons
 });
 
 // POST /:id/entry-fee-tx — build an entry fee transfer transaction for client signing
+// Query param ?type=create for custom game creation fee, default is join fee
 router.post('/:id/entry-fee-tx', requireAuth, async (req: Request, res: Response) => {
   try {
-    const entryFee = parseInt(process.env.ENTRY_FEE_AMOUNT || '0', 10);
-    if (entryFee <= 0) {
-      res.json({ needsSignature: false });
+    if (!req.playerPubkey || !process.env.SKR_TOKEN_MINT) {
+      res.json({ needsSignature: false, fee: 0 });
       return;
     }
 
-    if (!req.playerPubkey) {
-      res.status(400).json({ error: 'Player pubkey not available' });
+    const isCreate = req.query.type === 'create';
+    const concurrentFee = await getJoinFee(req.playerId!);
+    const fee = isCreate ? SKR_CUSTOM_GAME_FEE + concurrentFee : concurrentFee;
+
+    if (fee <= 0) {
+      res.json({ needsSignature: false, fee: 0 });
       return;
     }
 
-    const transaction = await buildEntryFeeTransfer(req.playerPubkey, entryFee);
-    res.json({ needsSignature: true, transaction });
+    const transaction = await buildEntryFeeTransfer(req.playerPubkey, fee);
+    res.json({
+      needsSignature: true,
+      transaction,
+      fee: fee / SKR_DECIMALS,
+      breakdown: {
+        customGameFee: isCreate ? SKR_CUSTOM_GAME_FEE / SKR_DECIMALS : 0,
+        concurrentGameFee: concurrentFee / SKR_DECIMALS,
+      },
+    });
   } catch (err: any) {
     console.error('Entry fee tx error:', err.message);
     res.status(500).json({ error: err.message || 'Failed to build entry fee transaction' });
