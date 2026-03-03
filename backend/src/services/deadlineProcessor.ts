@@ -1,5 +1,6 @@
 import { query } from '../config/database';
 import { processDay } from './gameEngine';
+import { submitBotMoves } from './botAI';
 import { emitGameUpdate, emitGamesList } from '../socket';
 
 // Track which games have already been processed during today's deadline window.
@@ -25,6 +26,13 @@ export async function processExpiredDeadlines(): Promise<void> {
     if (processedToday.get(gameId) === todayUTC) continue;
 
     try {
+      // Submit AI moves for bots before falling back to defend-in-place
+      try {
+        await submitBotMoves(gameId);
+      } catch (botErr: any) {
+        console.error(`Deadline processor: bot AI failed for game ${gameId}:`, botErr.message);
+      }
+
       // Find alive players who haven't submitted for the next day
       const missingRes = await query(
         `SELECT gp.id, gp.current_position

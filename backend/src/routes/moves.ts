@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { query } from '../config/database';
 import { getAdjacentTiles, processDay, getFullGame } from '../services/gameEngine';
+import { submitBotMoves } from '../services/botAI';
 import { emitGameUpdate, emitGamesList } from '../socket';
 
 const router = Router({ mergeParams: true });
@@ -323,6 +324,13 @@ router.post('/', async (req: Request, res: Response) => {
         return;
       }
       throw err;
+    }
+
+    // Submit AI moves for all bots in this game
+    try {
+      await submitBotMoves(gameId);
+    } catch (botErr: any) {
+      console.error('Bot AI submission failed:', botErr.message);
     }
 
     // Auto-process day if all alive players have submitted moves
