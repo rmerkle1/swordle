@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PlayerStats } from '../types';
-import { api } from '../services/api';
-import { authorizeWallet, deauthorizeWallet } from '../utils/wallet';
+import { api, setAuthToken } from '../services/api';
+import { authorizeWallet, deauthorizeWallet, signAuthMessage } from '../utils/wallet';
 
 const STORAGE_KEY_ID = 'swordle_player_id';
 const STORAGE_KEY_NAME = 'swordle_player_name';
 const STORAGE_KEY_WALLET = 'swordle_wallet_address';
 const STORAGE_KEY_AUTH_TOKEN = 'swordle_auth_token';
+const STORAGE_KEY_JWT = 'swordle_jwt';
 
 interface PlayerState {
   playerId: string;
@@ -46,27 +47,35 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
     try {
       const savedWallet = await AsyncStorage.getItem(STORAGE_KEY_WALLET);
+      const savedJwt = await AsyncStorage.getItem(STORAGE_KEY_JWT);
+
+      // Restore JWT to api module
+      if (savedJwt) {
+        setAuthToken(savedJwt);
+      }
 
       if (savedWallet) {
-        // Try to log in via backend pubkey lookup
-        const player = await api.loginWithWallet(savedWallet);
-        if (player) {
-          await AsyncStorage.setItem(STORAGE_KEY_ID, player.id);
-          await AsyncStorage.setItem(STORAGE_KEY_NAME, player.name);
-          set({
-            playerId: player.id,
-            playerName: player.name,
-            walletAddress: savedWallet,
-            coins: player.coins ?? 1000,
-            gamesToday: player.gamesToday ?? 0,
-            initialized: true,
-            needsRegistration: false,
-          });
-          api.getPlayerStats(player.id).then((stats) => set({ stats })).catch(() => {});
-          return;
+        if (savedJwt) {
+          // Have JWT — try to verify it's still valid via login
+          const player = await api.loginWithWallet(savedWallet);
+          if (player) {
+            await AsyncStorage.setItem(STORAGE_KEY_ID, player.id);
+            await AsyncStorage.setItem(STORAGE_KEY_NAME, player.name);
+            set({
+              playerId: player.id,
+              playerName: player.name,
+              walletAddress: savedWallet,
+              coins: player.coins ?? 1000,
+              gamesToday: player.gamesToday ?? 0,
+              initialized: true,
+              needsRegistration: false,
+            });
+            api.getPlayerStats(player.id).then((stats) => set({ stats })).catch(() => {});
+            return;
+          }
         }
 
-        // Wallet saved but no backend record — need registration (wallet already connected)
+        // Wallet saved but no valid JWT or no backend record — need to re-auth or register
         set({ walletAddress: savedWallet, initialized: true, needsRegistration: true });
         return;
       }
@@ -80,10 +89,36 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   connectWallet: async () => {
+    // Step 1: Authorize with MWA
     const { address, authToken } = await authorizeWallet();
     await AsyncStorage.setItem(STORAGE_KEY_WALLET, address);
     await AsyncStorage.setItem(STORAGE_KEY_AUTH_TOKEN, authToken);
-    set({ walletAddress: address });
+
+    // Step 2: Get challenge from backend
+    const challenge = await api.getChallenge(address);
+
+    // Step 3: Sign challenge message via MWA
+    const signature = await signAuthMessage(challenge.message, authToken);
+
+    // Step 4: Verify signature with backend, get JWT
+    const result = await api.verifySignature(address, signature, challenge.nonce);
+
+    // Step 5: Store JWT and set auth
+    await AsyncStorage.setItem(STORAGE_KEY_JWT, result.token);
+    setAuthToken(result.token);
+
+    // Step 6: Update state
+    await AsyncStorage.setItem(STORAGE_KEY_ID, result.player.id);
+    await AsyncStorage.setItem(STORAGE_KEY_NAME, result.player.name);
+
+    set({
+      walletAddress: address,
+      playerId: result.player.id,
+      playerName: result.player.name,
+      coins: result.player.coins ?? 1000,
+      gamesToday: result.player.gamesToday ?? 0,
+      needsRegistration: false,
+    });
   },
 
   disconnectWallet: async () => {
@@ -96,11 +131,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       // Wallet may not be available; still clear local state
     }
 
+    // Clear JWT
+    setAuthToken(null);
+
     await AsyncStorage.multiRemove([
       STORAGE_KEY_ID,
       STORAGE_KEY_NAME,
       STORAGE_KEY_WALLET,
       STORAGE_KEY_AUTH_TOKEN,
+      STORAGE_KEY_JWT,
     ]);
 
     set({

@@ -29,6 +29,54 @@ export async function authorizeWallet(): Promise<{ address: string; authToken: s
 }
 
 /**
+ * Sign an authentication message via MWA (for Sign-In with Solana).
+ * Returns the signature as a base64 string.
+ */
+export async function signAuthMessage(message: string, authToken: string): Promise<string> {
+  const msgBytes = new TextEncoder().encode(message);
+
+  const result = await transact(async (wallet) => {
+    await wallet.reauthorize({
+      auth_token: authToken,
+      identity: APP_IDENTITY,
+    });
+
+    const signed = await wallet.signMessages({
+      addresses: [], // uses the authorized account
+      payloads: [msgBytes],
+    });
+
+    return signed;
+  });
+
+  // result[0] is the signature bytes — convert to base64
+  return Buffer.from(result[0]).toString('base64');
+}
+
+/**
+ * Sign a Solana transaction via MWA (for $SKR transfers, etc.).
+ * Takes a base64-encoded serialized transaction, returns base64-encoded signed transaction.
+ */
+export async function signTransaction(serializedTx: string, authToken: string): Promise<string> {
+  const txBytes = Buffer.from(serializedTx, 'base64');
+
+  const result = await transact(async (wallet) => {
+    await wallet.reauthorize({
+      auth_token: authToken,
+      identity: APP_IDENTITY,
+    });
+
+    const signed = await wallet.signTransactions({
+      payloads: [txBytes],
+    });
+
+    return signed;
+  });
+
+  return Buffer.from(result[0]).toString('base64');
+}
+
+/**
  * Deauthorizes the given auth token with the wallet.
  */
 export async function deauthorizeWallet(authToken: string): Promise<void> {

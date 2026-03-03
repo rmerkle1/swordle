@@ -4,6 +4,7 @@ import { query } from '../config/database';
 import { getAdjacentTiles, processDay, getFullGame } from '../services/gameEngine';
 import { submitBotMoves } from '../services/botAI';
 import { emitGameUpdate, emitGamesList } from '../socket';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router({ mergeParams: true });
 
@@ -67,7 +68,7 @@ router.get('/pending/:playerId', async (req: Request, res: Response) => {
 });
 
 // DELETE / — retract a pending move (mounted at /api/games/:id/moves)
-router.delete('/', async (req: Request, res: Response) => {
+router.delete('/', requireAuth, async (req: Request, res: Response) => {
   try {
     const gameId = parseInt(req.params.id, 10);
     if (isNaN(gameId)) {
@@ -113,6 +114,12 @@ router.delete('/', async (req: Request, res: Response) => {
       return;
     }
 
+    // Verify ownership: game_player must belong to the authenticated user
+    if (playerRes.rows[0].player_id !== req.playerId) {
+      res.status(403).json({ error: 'Not your game player' });
+      return;
+    }
+
     const nextDay = game.current_day + 1;
 
     // Find unprocessed move
@@ -135,7 +142,7 @@ router.delete('/', async (req: Request, res: Response) => {
 });
 
 // POST / — submit move (mounted at /api/games/:id/moves)
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requireAuth, async (req: Request, res: Response) => {
   try {
     const gameId = parseInt(req.params.id, 10);
     if (isNaN(gameId)) {
@@ -175,6 +182,12 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
     const player = playerRes.rows[0];
+
+    // Verify ownership: game_player must belong to the authenticated user
+    if (player.player_id !== req.playerId) {
+      res.status(403).json({ error: 'Not your game player' });
+      return;
+    }
 
     if (player.status !== 'active') {
       res.status(400).json({ error: 'Player is eliminated' });

@@ -1,5 +1,6 @@
 import { query, pool } from '../config/database';
 import { Game, GamePlayer, GameEvent, MapTile, TileType, ActionType, BuildOption, FighterClass } from '../types';
+import { recordDayHash, computeMovesHash } from './solana';
 
 function chebyshevDistance(index1: number, index2: number, boardSize: number): number {
   const x1 = index1 % boardSize;
@@ -785,6 +786,23 @@ export async function processDay(gameId: number): Promise<Game> {
     }
 
     await client.query('COMMIT');
+
+    // Record move hash on-chain (non-blocking — don't fail the day if chain is down)
+    if (process.env.SOLANA_AUTHORITY_KEYPAIR) {
+      try {
+        const movesForHash = movesRes.rows.map((r: any) => ({
+          game_player_id: r.game_player_id,
+          destination: r.destination,
+          action: r.action,
+          build_option: r.build_option || null,
+          attack_target: r.attack_target ?? null,
+        }));
+        const hash = computeMovesHash(movesForHash);
+        await recordDayHash(gameId, nextDay, hash);
+      } catch (chainErr: any) {
+        console.error(`On-chain hash recording failed for game ${gameId} day ${nextDay}:`, chainErr.message);
+      }
+    }
 
     // Return updated game state
     return await getFullGame(gameId);

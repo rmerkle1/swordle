@@ -5,6 +5,9 @@ import { getFullGame, getFilteredGame } from '../services/gameEngine';
 import { startDefaultGame, ensureDefaultLobbyExists } from '../services/defaultGameManager';
 import { Game } from '../types';
 import { emitGameUpdate, emitGamesList } from '../socket';
+import { requireAuth } from '../middleware/auth';
+import { getSKRBalance, buildEntryFeeTransfer, submitAndConfirmTx } from '../services/solana';
+import { verifyFighterOwnership } from '../services/nftService';
 
 const router = Router();
 
@@ -75,13 +78,10 @@ export async function checkAndDeductCoins(playerId: number): Promise<{ coinCost:
 }
 
 // POST / — create game
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requireAuth, async (req: Request, res: Response) => {
   try {
-    const { maxPlayers = 4, creatorId, moveDeadlineHour, fighterClass: rawClass, passcode, reservedSlots = 0, mapTheme = 'default' } = req.body;
-    if (!creatorId) {
-      res.status(400).json({ error: 'creatorId is required' });
-      return;
-    }
+    const { maxPlayers = 4, moveDeadlineHour, fighterClass: rawClass, passcode, reservedSlots = 0, mapTheme = 'default' } = req.body;
+    const creatorId = req.playerId!;
 
     if (!Number.isInteger(maxPlayers) || maxPlayers < 2 || maxPlayers > 16) {
       res.status(400).json({ error: 'maxPlayers must be between 2 and 16' });
@@ -100,12 +100,31 @@ router.post('/', async (req: Request, res: Response) => {
     const weaponTier = fighterClass === 'cavalry' ? 0 : 1;
 
     // Verify player exists
-    const playerRes = await query('SELECT * FROM players WHERE id = $1', [parseInt(creatorId, 10)]);
+    const playerRes = await query('SELECT * FROM players WHERE id = $1', [creatorId]);
     if (playerRes.rows.length === 0) {
       res.status(404).json({ error: 'Player not found' });
       return;
     }
     const player = playerRes.rows[0];
+
+    // Verify fighter NFT ownership
+    if (req.playerPubkey) {
+      const ownsFighter = await verifyFighterOwnership(req.playerPubkey, fighterClass);
+      if (!ownsFighter) {
+        res.status(403).json({ error: `You do not own a ${fighterClass} NFT` });
+        return;
+      }
+    }
+
+    // $SKR balance check (if ENTRY_FEE_AMOUNT is set)
+    const entryFee = parseInt(process.env.ENTRY_FEE_AMOUNT || '0', 10);
+    if (entryFee > 0 && req.playerPubkey) {
+      const balance = await getSKRBalance(req.playerPubkey);
+      if (balance < entryFee) {
+        res.status(400).json({ error: 'Insufficient $SKR balance', required: entryFee, have: balance });
+        return;
+      }
+    }
 
     // Coin check
     const coinResult = await checkAndDeductCoins(player.id);
@@ -182,7 +201,7 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // POST /:id/join — join a lobby game
-router.post('/:id/join', async (req: Request, res: Response) => {
+router.post('/:id/join', requireAuth, async (req: Request, res: Response) => {
   try {
     const gameId = parseInt(req.params.id, 10);
     if (isNaN(gameId)) {
@@ -190,11 +209,8 @@ router.post('/:id/join', async (req: Request, res: Response) => {
       return;
     }
 
-    const { playerId, fighterClass: rawClass, passcode: joinPasscode } = req.body;
-    if (!playerId) {
-      res.status(400).json({ error: 'playerId is required' });
-      return;
-    }
+    const playerId = req.playerId!;
+    const { fighterClass: rawClass, passcode: joinPasscode } = req.body;
 
     // Validate fighter class
     const validClasses = ['knight', 'archer', 'cavalry', 'mage'];
@@ -236,12 +252,21 @@ router.post('/:id/join', async (req: Request, res: Response) => {
     }
 
     // Verify player
-    const playerRes = await query('SELECT * FROM players WHERE id = $1', [parseInt(playerId, 10)]);
+    const playerRes = await query('SELECT * FROM players WHERE id = $1', [playerId]);
     if (playerRes.rows.length === 0) {
       res.status(404).json({ error: 'Player not found' });
       return;
     }
     const player = playerRes.rows[0];
+
+    // Verify fighter NFT ownership
+    if (req.playerPubkey) {
+      const ownsFighter = await verifyFighterOwnership(req.playerPubkey, fighterClass);
+      if (!ownsFighter) {
+        res.status(403).json({ error: `You do not own a ${fighterClass} NFT` });
+        return;
+      }
+    }
 
     // Check not already joined
     const existingRes = await query(
@@ -251,6 +276,16 @@ router.post('/:id/join', async (req: Request, res: Response) => {
     if (existingRes.rows.length > 0) {
       res.status(400).json({ error: 'Player already in game' });
       return;
+    }
+
+    // $SKR balance check
+    const entryFee = parseInt(process.env.ENTRY_FEE_AMOUNT || '0', 10);
+    if (entryFee > 0 && req.playerPubkey) {
+      const balance = await getSKRBalance(req.playerPubkey);
+      if (balance < entryFee) {
+        res.status(400).json({ error: 'Insufficient $SKR balance', required: entryFee, have: balance });
+        return;
+      }
     }
 
     // Coin check
@@ -335,7 +370,7 @@ router.post('/:id/join', async (req: Request, res: Response) => {
 });
 
 // POST /:id/leave — leave a lobby game or forfeit an active game
-router.post('/:id/leave', async (req: Request, res: Response) => {
+router.post('/:id/leave', requireAuth, async (req: Request, res: Response) => {
   try {
     const gameId = parseInt(req.params.id, 10);
     if (isNaN(gameId)) {
@@ -343,11 +378,7 @@ router.post('/:id/leave', async (req: Request, res: Response) => {
       return;
     }
 
-    const { playerId } = req.body;
-    if (!playerId) {
-      res.status(400).json({ error: 'playerId is required' });
-      return;
-    }
+    const playerId = req.playerId!;
 
     // Fetch game
     const gameRes = await query('SELECT * FROM games WHERE id = $1', [gameId]);
@@ -360,7 +391,7 @@ router.post('/:id/leave', async (req: Request, res: Response) => {
     // Find game_player row
     const gpRes = await query(
       'SELECT * FROM game_players WHERE game_id = $1 AND player_id = $2',
-      [gameId, parseInt(playerId, 10)]
+      [gameId, playerId]
     );
     if (gpRes.rows.length === 0) {
       res.status(404).json({ error: 'Player not in this game' });
@@ -416,6 +447,51 @@ router.post('/:id/leave', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Games route error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /:id/confirm-entry — confirm $SKR entry fee (client signs tx, backend submits)
+router.post('/:id/confirm-entry', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const gameId = parseInt(req.params.id, 10);
+    if (isNaN(gameId)) {
+      res.status(400).json({ error: 'Invalid game ID' });
+      return;
+    }
+
+    const { signedTransaction } = req.body;
+    if (!signedTransaction) {
+      res.status(400).json({ error: 'signedTransaction is required' });
+      return;
+    }
+
+    const txSignature = await submitAndConfirmTx(signedTransaction);
+    res.json({ success: true, txSignature });
+  } catch (err: any) {
+    console.error('Confirm entry error:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to confirm entry fee' });
+  }
+});
+
+// POST /:id/entry-fee-tx — build an entry fee transfer transaction for client signing
+router.post('/:id/entry-fee-tx', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const entryFee = parseInt(process.env.ENTRY_FEE_AMOUNT || '0', 10);
+    if (entryFee <= 0) {
+      res.json({ needsSignature: false });
+      return;
+    }
+
+    if (!req.playerPubkey) {
+      res.status(400).json({ error: 'Player pubkey not available' });
+      return;
+    }
+
+    const transaction = await buildEntryFeeTransfer(req.playerPubkey, entryFee);
+    res.json({ needsSignature: true, transaction });
+  } catch (err: any) {
+    console.error('Entry fee tx error:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to build entry fee transaction' });
   }
 });
 

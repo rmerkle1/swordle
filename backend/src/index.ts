@@ -8,6 +8,8 @@ import gamesRouter from './routes/games';
 import movesRouter from './routes/moves';
 import playersRouter from './routes/players';
 import adminRouter from './routes/admin';
+import authRouter from './routes/auth';
+import fightersRouter from './routes/fighters';
 import { setIO, socketPlayerMap } from './socket';
 import { processExpiredDeadlines } from './services/deadlineProcessor';
 import { ensureDefaultLobbyExists, processDefaultLobbies } from './services/defaultGameManager';
@@ -56,10 +58,12 @@ app.get('/health', (_req, res) => {
 });
 
 // Mount routes
+app.use('/api/auth', authRouter);
 app.use('/api/games', gamesRouter);
 app.use('/api/games/:id/moves', movesRouter);
 app.use('/api/players', playersRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/fighters', fightersRouter);
 
 // Global error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -85,6 +89,12 @@ async function cleanupStaleLobbies() {
 
 async function start() {
   try {
+    // Verify required env vars
+    if (!process.env.JWT_SECRET) {
+      console.error('FATAL: JWT_SECRET environment variable is required');
+      process.exit(1);
+    }
+
     await testConnection();
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
