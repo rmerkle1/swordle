@@ -23,6 +23,7 @@ interface PlayerState {
   setStats: (stats: PlayerStats) => void;
   loadPlayer: () => Promise<void>;
   connectWallet: () => Promise<void>;
+  authenticateWallet: (name: string) => Promise<void>;
   disconnectWallet: () => Promise<void>;
   registerPlayer: (name: string, pubkey: string) => Promise<void>;
   refreshStats: () => Promise<void>;
@@ -48,6 +49,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     try {
       const savedWallet = await AsyncStorage.getItem(STORAGE_KEY_WALLET);
       const savedJwt = await AsyncStorage.getItem(STORAGE_KEY_JWT);
+      console.log('[loadPlayer] savedWallet:', savedWallet ? savedWallet.slice(0, 8) + '...' : 'null');
+      console.log('[loadPlayer] savedJwt:', savedJwt ? 'present' : 'null');
 
       // Restore JWT to api module
       if (savedJwt) {
@@ -57,8 +60,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       if (savedWallet) {
         if (savedJwt) {
           // Have JWT — try to verify it's still valid via login
+          console.log('[loadPlayer] Verifying JWT via loginWithWallet...');
           const player = await api.loginWithWallet(savedWallet);
           if (player) {
+            console.log('[loadPlayer] Login success — player:', player.name, 'id:', player.id);
             await AsyncStorage.setItem(STORAGE_KEY_ID, player.id);
             await AsyncStorage.setItem(STORAGE_KEY_NAME, player.name);
             set({
@@ -73,52 +78,86 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
             api.getPlayerStats(player.id).then((stats) => set({ stats })).catch(() => {});
             return;
           }
+          console.log('[loadPlayer] loginWithWallet returned null — JWT may be invalid');
         }
 
         // Wallet saved but no valid JWT or no backend record — need to re-auth or register
+        console.log('[loadPlayer] Wallet saved but no valid session — showing registration');
         set({ walletAddress: savedWallet, initialized: true, needsRegistration: true });
         return;
       }
 
       // No saved wallet — show registration screen
+      console.log('[loadPlayer] No saved wallet — showing registration');
       set({ initialized: true, needsRegistration: true });
     } catch (err) {
-      console.error('Failed to load player:', err);
+      console.error('[loadPlayer] Failed to load player:', err);
       set({ initialized: true, needsRegistration: true });
     }
   },
 
   connectWallet: async () => {
-    // Step 1: Authorize with MWA
+    // MWA authorize only — get wallet address and auth token
+    console.log('[connectWallet] Starting MWA authorize...');
     const { address, authToken } = await authorizeWallet();
+    console.log('[connectWallet] MWA authorized — address:', address.slice(0, 8) + '...');
     await AsyncStorage.setItem(STORAGE_KEY_WALLET, address);
     await AsyncStorage.setItem(STORAGE_KEY_AUTH_TOKEN, authToken);
+    set({ walletAddress: address });
+    console.log('[connectWallet] Wallet address saved, showing name step');
+  },
 
-    // Step 2: Get challenge from backend
-    const challenge = await api.getChallenge(address);
+  authenticateWallet: async (name: string) => {
+    console.log('[authenticateWallet] Starting with name:', name);
+    let { walletAddress } = get();
+    let mwaAuthToken = await AsyncStorage.getItem(STORAGE_KEY_AUTH_TOKEN);
+    console.log('[authenticateWallet] walletAddress:', walletAddress ? walletAddress.slice(0, 8) + '...' : 'null');
+    console.log('[authenticateWallet] mwaAuthToken:', mwaAuthToken ? 'present' : 'null');
 
-    // Step 3: Sign challenge message via MWA
-    const signature = await signAuthMessage(challenge.message, authToken);
+    // If no wallet or MWA token, do a fresh MWA authorize
+    if (!walletAddress || !mwaAuthToken) {
+      console.log('[authenticateWallet] No wallet/token — doing fresh MWA authorize...');
+      const authResult = await authorizeWallet();
+      walletAddress = authResult.address;
+      mwaAuthToken = authResult.authToken;
+      await AsyncStorage.setItem(STORAGE_KEY_WALLET, walletAddress);
+      await AsyncStorage.setItem(STORAGE_KEY_AUTH_TOKEN, mwaAuthToken);
+      set({ walletAddress });
+      console.log('[authenticateWallet] Fresh MWA authorize done — address:', walletAddress.slice(0, 8) + '...');
+    }
 
-    // Step 4: Verify signature with backend, get JWT
-    const result = await api.verifySignature(address, signature, challenge.nonce);
+    // Get challenge from backend
+    console.log('[authenticateWallet] Getting challenge from backend...');
+    const challenge = await api.getChallenge(walletAddress);
+    console.log('[authenticateWallet] Challenge received — nonce:', challenge.nonce.slice(0, 8) + '...');
 
-    // Step 5: Store JWT and set auth
+    // Sign challenge message via MWA
+    console.log('[authenticateWallet] Signing challenge via MWA...');
+    const signature = await signAuthMessage(challenge.message, mwaAuthToken);
+    console.log('[authenticateWallet] Challenge signed — signature:', signature.slice(0, 16) + '...');
+
+    // Verify signature with backend, get JWT (pass name for new players)
+    console.log('[authenticateWallet] Verifying signature with backend...');
+    const result = await api.verifySignature(walletAddress, signature, challenge.nonce, name);
+    console.log('[authenticateWallet] Verified! Player:', result.player.name, 'id:', result.player.id);
+
+    // Store JWT and set auth
     await AsyncStorage.setItem(STORAGE_KEY_JWT, result.token);
     setAuthToken(result.token);
 
-    // Step 6: Update state
+    // Update state
     await AsyncStorage.setItem(STORAGE_KEY_ID, result.player.id);
     await AsyncStorage.setItem(STORAGE_KEY_NAME, result.player.name);
 
     set({
-      walletAddress: address,
+      walletAddress,
       playerId: result.player.id,
       playerName: result.player.name,
       coins: result.player.coins ?? 1000,
       gamesToday: result.player.gamesToday ?? 0,
       needsRegistration: false,
     });
+    console.log('[authenticateWallet] Complete — player registered and authenticated');
   },
 
   disconnectWallet: async () => {

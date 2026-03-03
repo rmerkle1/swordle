@@ -41,13 +41,13 @@ export const api = {
     });
   },
 
-  async verifySignature(pubkey: string, signature: string, nonce: string): Promise<{
+  async verifySignature(pubkey: string, signature: string, nonce: string, playerName?: string): Promise<{
     token: string;
     player: { id: string; name: string; pubkey: string; coins: number; gamesToday: number };
   }> {
     return fetchJson(`${API_BASE}/auth/verify`, {
       method: 'POST',
-      body: JSON.stringify({ pubkey, signature, nonce }),
+      body: JSON.stringify({ pubkey, signature, nonce, playerName }),
     });
   },
 
@@ -156,8 +156,14 @@ export const api = {
 
   // --- $SKR / Entry fee endpoints ---
 
-  async getEntryFeeTx(gameId: string): Promise<{ needsSignature: boolean; transaction?: string }> {
+  async getEntryFeeTx(gameId: string): Promise<{ needsSignature: boolean; transaction?: string; fee?: number }> {
     return fetchJson(`${API_BASE}/games/${gameId}/entry-fee-tx`, {
+      method: 'POST',
+    });
+  },
+
+  async getCreateFeeTx(): Promise<{ needsSignature: boolean; transaction?: string; fee?: number }> {
+    return fetchJson(`${API_BASE}/games/create-fee-tx`, {
       method: 'POST',
     });
   },

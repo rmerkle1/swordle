@@ -11,6 +11,8 @@ import { api } from '../services/api';
 import { connectSocket, onGamesList } from '../services/socket';
 import GameCard from '../components/GameCard';
 import { UI_IMAGES, FIGHTER_IMAGES } from '../assets';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { signTransaction } from '../utils/wallet';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -57,8 +59,38 @@ export default function ExploreScreen() {
   const confirmJoinWithClass = async (fighterClass: string) => {
     if (!playerId || !pendingJoinGameId) return;
     setShowClassPicker(false);
+    console.log('[JoinGame] Joining game', pendingJoinGameId, 'as', fighterClass);
     try {
+      // Step 1: Check if $SKR fee is required
+      console.log('[JoinGame] Checking $SKR fee...');
+      const feeResult = await api.getEntryFeeTx(pendingJoinGameId);
+      console.log('[JoinGame] Fee result:', JSON.stringify(feeResult));
+
+      if (feeResult.needsSignature && feeResult.transaction) {
+        // Step 2: Sign the $SKR transfer via MWA
+        console.log('[JoinGame] Fee required — signing tx via MWA...');
+        const mwaAuthToken = await AsyncStorage.getItem('swordle_auth_token');
+        if (!mwaAuthToken) {
+          console.error('[JoinGame] No MWA auth token found');
+          Alert.alert('Wallet Error', 'Please reconnect your wallet.');
+          setPendingJoinGameId(null);
+          return;
+        }
+        const signedTx = await signTransaction(feeResult.transaction, mwaAuthToken);
+        console.log('[JoinGame] Transaction signed');
+
+        // Step 3: Submit signed transaction
+        console.log('[JoinGame] Submitting signed tx to backend...');
+        const confirmResult = await api.confirmEntry(pendingJoinGameId, signedTx);
+        console.log('[JoinGame] Entry confirmed:', JSON.stringify(confirmResult));
+      } else {
+        console.log('[JoinGame] No $SKR fee required (first free game)');
+      }
+
+      // Step 4: Join the game
+      console.log('[JoinGame] Calling joinGame API...');
       const result = await api.joinGame(pendingJoinGameId, playerId, fighterClass);
+      console.log('[JoinGame] Joined! Game status:', result.game.status);
       if (result.coinsRemaining !== undefined) {
         usePlayerStore.setState({ coins: result.coinsRemaining });
       }
@@ -67,7 +99,15 @@ export default function ExploreScreen() {
         navigation.navigate('Game', { gameId: result.game.id });
       }
     } catch (err: any) {
-      Alert.alert('Join Failed', err.message || 'Could not join game');
+      console.error('[JoinGame] Error:', err?.message, err);
+      const msg = err?.message || 'Could not join game';
+      if (msg.includes('Insufficient $SKR')) {
+        Alert.alert('Insufficient $SKR', msg);
+      } else if (msg.includes('AUTHORIZATION_DECLINED') || msg.includes('declined')) {
+        Alert.alert('Transaction Declined', 'You declined the $SKR transfer.');
+      } else {
+        Alert.alert('Join Failed', msg);
+      }
     }
     setPendingJoinGameId(null);
   };

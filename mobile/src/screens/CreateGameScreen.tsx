@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, Image, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
@@ -8,6 +8,8 @@ import { usePlayerStore } from '../store/playerStore';
 import { api } from '../services/api';
 import { FIGHTER_IMAGES } from '../assets';
 import { FighterClass } from '../types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { signTransaction } from '../utils/wallet';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -23,14 +25,10 @@ export default function CreateGameScreen() {
   const [deadlineHour, setDeadlineHour] = useState(0);
   const [creating, setCreating] = useState(false);
 
-  const coinCost = gamesToday === 0 ? 0 : 50;
+  const skrCost = 100; // Custom game creation always costs 100 $SKR
 
   const handleCreate = async () => {
     if (!playerId) return;
-    if (coinCost > 0 && coins < coinCost) {
-      Alert.alert('Insufficient Coins', `You need ${coinCost} coins but only have ${coins}.`);
-      return;
-    }
     if (reservedSlots > 0 && !passcode.trim()) {
       Alert.alert('Passcode Required', 'Set a passcode when reserving slots.');
       return;
@@ -38,19 +36,55 @@ export default function CreateGameScreen() {
 
     setCreating(true);
     try {
+      // Step 1: Check if $SKR fee is required
+      console.log('[CreateGame] Checking $SKR fee...');
+      const feeResult = await api.getCreateFeeTx();
+      console.log('[CreateGame] Fee result:', JSON.stringify(feeResult));
+
+      if (feeResult.needsSignature && feeResult.transaction) {
+        // Step 2: Sign the $SKR transfer via MWA
+        console.log('[CreateGame] Fee required — signing tx via MWA...');
+        const mwaAuthToken = await AsyncStorage.getItem('swordle_auth_token');
+        if (!mwaAuthToken) {
+          console.error('[CreateGame] No MWA auth token found');
+          Alert.alert('Wallet Error', 'Please reconnect your wallet.');
+          setCreating(false);
+          return;
+        }
+        const signedTx = await signTransaction(feeResult.transaction, mwaAuthToken);
+        console.log('[CreateGame] Transaction signed');
+
+        // Step 3: Submit signed transaction
+        console.log('[CreateGame] Submitting signed tx to backend...');
+        const confirmResult = await api.confirmEntry('0', signedTx);
+        console.log('[CreateGame] Entry confirmed:', JSON.stringify(confirmResult));
+      } else {
+        console.log('[CreateGame] No $SKR fee required');
+      }
+
+      // Step 4: Create the game
+      console.log('[CreateGame] Creating game...');
       const result = await api.createGame({
         maxPlayers,
-        creatorId: playerId,
         moveDeadlineHour: deadlineHour,
         fighterClass,
         passcode: reservedSlots > 0 ? passcode.trim() : undefined,
         reservedSlots: reservedSlots > 0 ? reservedSlots : undefined,
         mapTheme,
       });
+      console.log('[CreateGame] Game created! id:', result.id);
       usePlayerStore.setState({ coins: result.coinsRemaining, gamesToday: gamesToday + 1 });
       navigation.replace('Game', { gameId: result.id });
     } catch (err: any) {
-      Alert.alert('Create Failed', err.message || 'Could not create game');
+      console.error('[CreateGame] Error:', err?.message, err);
+      const msg = err?.message || 'Could not create game';
+      if (msg.includes('Insufficient $SKR')) {
+        Alert.alert('Insufficient $SKR', msg);
+      } else if (msg.includes('AUTHORIZATION_DECLINED') || msg.includes('declined')) {
+        Alert.alert('Transaction Declined', 'You declined the $SKR transfer.');
+      } else {
+        Alert.alert('Create Failed', msg);
+      }
     }
     setCreating(false);
   };
@@ -156,10 +190,7 @@ export default function CreateGameScreen() {
       {/* Cost Display */}
       <View style={styles.costRow}>
         <Text style={styles.costLabel}>Cost:</Text>
-        <Text style={[styles.costValue, coinCost === 0 && styles.costFree]}>
-          {coinCost === 0 ? 'Free' : `${coinCost} coins`}
-        </Text>
-        <Text style={styles.costBalance}>Balance: {coins}</Text>
+        <Text style={styles.costValue}>{skrCost} $SKR</Text>
       </View>
 
       {/* Create Button */}

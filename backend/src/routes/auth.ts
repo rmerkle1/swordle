@@ -39,7 +39,7 @@ router.post('/challenge', (req: Request, res: Response) => {
 // POST /verify — verify signature and issue JWT
 router.post('/verify', async (req: Request, res: Response) => {
   try {
-    const { pubkey, signature, nonce } = req.body;
+    const { pubkey, signature, nonce, playerName } = req.body;
     if (!pubkey || !signature || !nonce) {
       res.status(400).json({ error: 'pubkey, signature, and nonce are required' });
       return;
@@ -82,13 +82,19 @@ router.post('/verify', async (req: Request, res: Response) => {
     const existingPlayer = await query('SELECT id FROM players WHERE pubkey = $1', [pubkey]);
     const isNewPlayer = existingPlayer.rows.length === 0;
 
-    // Upsert player
+    // Upsert player — use provided playerName for new players, keep existing name for returning ones
+    const displayName = playerName && typeof playerName === 'string' && playerName.trim().length >= 2
+      ? playerName.trim().slice(0, 20)
+      : pubkey.slice(0, 8);
     const upsertRes = await query(
       `INSERT INTO players (pubkey, username)
        VALUES ($1, $2)
-       ON CONFLICT (pubkey) DO UPDATE SET last_seen = NOW()
+       ON CONFLICT (pubkey) DO UPDATE SET username = CASE
+         WHEN players.username = LEFT(players.pubkey, 8) AND $2 != LEFT(players.pubkey, 8) THEN $2
+         ELSE players.username
+       END, last_seen = NOW()
        RETURNING *`,
-      [pubkey, pubkey.slice(0, 8)]
+      [pubkey, displayName]
     );
     const player = upsertRes.rows[0];
 

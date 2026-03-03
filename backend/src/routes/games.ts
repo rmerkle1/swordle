@@ -105,6 +105,38 @@ export async function checkAndDeductCoins(playerId: number): Promise<{ coinCost:
   return { coinCost, coinsRemaining: p.coins - coinCost };
 }
 
+// POST /create-fee-tx — build $SKR fee transaction for game creation (before game exists)
+router.post('/create-fee-tx', requireAuth, async (req: Request, res: Response) => {
+  try {
+    if (!req.playerPubkey || !process.env.SKR_TOKEN_MINT) {
+      res.json({ needsSignature: false, fee: 0 });
+      return;
+    }
+
+    const concurrentFee = await getJoinFee(req.playerId!);
+    const totalFee = SKR_CUSTOM_GAME_FEE + concurrentFee;
+
+    if (totalFee <= 0) {
+      res.json({ needsSignature: false, fee: 0 });
+      return;
+    }
+
+    const transaction = await buildEntryFeeTransfer(req.playerPubkey, totalFee);
+    res.json({
+      needsSignature: true,
+      transaction,
+      fee: totalFee / SKR_DECIMALS,
+      breakdown: {
+        customGameFee: SKR_CUSTOM_GAME_FEE / SKR_DECIMALS,
+        concurrentGameFee: concurrentFee / SKR_DECIMALS,
+      },
+    });
+  } catch (err: any) {
+    console.error('Create fee tx error:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to build creation fee transaction' });
+  }
+});
+
 // POST / — create game
 router.post('/', requireAuth, async (req: Request, res: Response) => {
   try {

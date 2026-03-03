@@ -9,14 +9,17 @@ export default function WelcomeScreen() {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { walletAddress, connectWallet, registerPlayer } = usePlayerStore();
+  const { walletAddress, connectWallet, authenticateWallet } = usePlayerStore();
 
   const handleConnectWallet = async () => {
     setLoading(true);
     setError('');
+    console.log('[WelcomeScreen] Connect Wallet pressed');
     try {
       await connectWallet();
+      console.log('[WelcomeScreen] connectWallet succeeded');
     } catch (err: any) {
+      console.error('[WelcomeScreen] connectWallet error:', err?.message, err);
       const msg = err?.message || '';
       if (msg.includes('Found no installed wallet')) {
         setError('No Solana wallet found. Install Phantom or another wallet app.');
@@ -43,10 +46,20 @@ export default function WelcomeScreen() {
 
     setLoading(true);
     setError('');
+    console.log('[WelcomeScreen] Start Playing pressed — name:', trimmed);
     try {
-      await registerPlayer(trimmed, walletAddress);
+      await authenticateWallet(trimmed);
+      console.log('[WelcomeScreen] authenticateWallet succeeded');
     } catch (err: any) {
-      setError(err.message || 'Failed to register. Is the server running?');
+      console.error('[WelcomeScreen] authenticateWallet error:', err?.message, err);
+      const msg = err?.message || '';
+      if (msg.includes('Found no installed wallet')) {
+        setError('No Solana wallet found. Install Phantom or another wallet app.');
+      } else if (msg.includes('AUTHORIZATION_DECLINED') || msg.includes('declined')) {
+        setError('Wallet signing was declined.');
+      } else {
+        setError(msg || 'Failed to authenticate. Is the server running?');
+      }
       setLoading(false);
     }
   };

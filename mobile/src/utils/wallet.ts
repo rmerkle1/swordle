@@ -1,5 +1,5 @@
 import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, VersionedTransaction } from '@solana/web3.js';
 import type { AppIdentity } from '@solana-mobile/mobile-wallet-adapter-protocol';
 
 export const APP_IDENTITY: AppIdentity = {
@@ -66,14 +66,15 @@ export async function signTransaction(serializedTx: string, authToken: string): 
       identity: APP_IDENTITY,
     });
 
+    const tx = VersionedTransaction.deserialize(txBytes);
     const signed = await wallet.signTransactions({
-      payloads: [txBytes],
+      transactions: [tx],
     });
 
     return signed;
   });
 
-  return Buffer.from(result[0]).toString('base64');
+  return Buffer.from(result[0].serialize()).toString('base64');
 }
 
 /**
