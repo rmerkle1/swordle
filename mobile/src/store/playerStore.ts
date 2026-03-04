@@ -81,9 +81,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
           console.log('[loadPlayer] loginWithWallet returned null — JWT may be invalid');
         }
 
-        // Wallet saved but no valid JWT or no backend record — need to re-auth or register
-        console.log('[loadPlayer] Wallet saved but no valid session — showing registration');
-        set({ walletAddress: savedWallet, initialized: true, needsRegistration: true });
+        // Wallet saved but no valid JWT or no backend record — need fresh wallet connection
+        // Don't set walletAddress — the MWA auth token is likely stale, so force Step 1
+        console.log('[loadPlayer] Wallet saved but no valid session — clearing stale state, showing Connect Wallet');
+        await AsyncStorage.removeItem(STORAGE_KEY_AUTH_TOKEN);
+        set({ initialized: true, needsRegistration: true });
         return;
       }
 
@@ -131,9 +133,25 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const challenge = await api.getChallenge(walletAddress);
     console.log('[authenticateWallet] Challenge received — nonce:', challenge.nonce.slice(0, 8) + '...');
 
-    // Sign challenge message via MWA
+    // Sign challenge message via MWA — retry with fresh authorize if token is stale
+    let signature: string;
     console.log('[authenticateWallet] Signing challenge via MWA...');
-    const signature = await signAuthMessage(challenge.message, mwaAuthToken);
+    try {
+      signature = await signAuthMessage(challenge.message, mwaAuthToken);
+    } catch (signErr: any) {
+      console.log('[authenticateWallet] Sign failed with stored token:', signErr?.message, '— re-authorizing...');
+      const freshAuth = await authorizeWallet();
+      walletAddress = freshAuth.address;
+      mwaAuthToken = freshAuth.authToken;
+      await AsyncStorage.setItem(STORAGE_KEY_WALLET, walletAddress);
+      await AsyncStorage.setItem(STORAGE_KEY_AUTH_TOKEN, mwaAuthToken);
+      set({ walletAddress });
+
+      // Re-fetch challenge for the (possibly different) wallet address
+      const newChallenge = await api.getChallenge(walletAddress);
+      signature = await signAuthMessage(newChallenge.message, mwaAuthToken);
+      challenge.nonce = newChallenge.nonce;
+    }
     console.log('[authenticateWallet] Challenge signed — signature:', signature.slice(0, 16) + '...');
 
     // Verify signature with backend, get JWT (pass name for new players)
