@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PlayerStats } from '../types';
 import { api, setAuthToken } from '../services/api';
-import { authorizeWallet, deauthorizeWallet, signAuthMessage } from '../utils/wallet';
+import { authorizeWallet, deauthorizeWallet, authorizeAndSignChallenge } from '../utils/wallet';
 
 const STORAGE_KEY_ID = 'swordle_player_id';
 const STORAGE_KEY_NAME = 'swordle_player_name';
@@ -111,52 +111,26 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   authenticateWallet: async (name: string) => {
     console.log('[authenticateWallet] Starting with name:', name);
-    let { walletAddress } = get();
-    let mwaAuthToken = await AsyncStorage.getItem(STORAGE_KEY_AUTH_TOKEN);
-    console.log('[authenticateWallet] walletAddress:', walletAddress ? walletAddress.slice(0, 8) + '...' : 'null');
-    console.log('[authenticateWallet] mwaAuthToken:', mwaAuthToken ? 'present' : 'null');
 
-    // If no wallet or MWA token, do a fresh MWA authorize
-    if (!walletAddress || !mwaAuthToken) {
-      console.log('[authenticateWallet] No wallet/token — doing fresh MWA authorize...');
-      const authResult = await authorizeWallet();
-      walletAddress = authResult.address;
-      mwaAuthToken = authResult.authToken;
-      await AsyncStorage.setItem(STORAGE_KEY_WALLET, walletAddress);
-      await AsyncStorage.setItem(STORAGE_KEY_AUTH_TOKEN, mwaAuthToken);
-      set({ walletAddress });
-      console.log('[authenticateWallet] Fresh MWA authorize done — address:', walletAddress.slice(0, 8) + '...');
-    }
+    // Single MWA session: authorize + fetch challenge + sign — one wallet popup
+    console.log('[authenticateWallet] Opening wallet for authorize + sign...');
+    const { address, authToken, signature, nonce } = await authorizeAndSignChallenge(
+      async (addr) => {
+        console.log('[authenticateWallet] Wallet authorized, address:', addr.slice(0, 8) + '...');
+        console.log('[authenticateWallet] Fetching challenge from backend...');
+        const challenge = await api.getChallenge(addr);
+        console.log('[authenticateWallet] Challenge received, signing...');
+        return challenge;
+      }
+    );
+    console.log('[authenticateWallet] Signed! Verifying with backend...');
 
-    // Get challenge from backend
-    console.log('[authenticateWallet] Getting challenge from backend...');
-    const challenge = await api.getChallenge(walletAddress);
-    console.log('[authenticateWallet] Challenge received — nonce:', challenge.nonce.slice(0, 8) + '...');
-
-    // Sign challenge message via MWA — retry with fresh authorize if token is stale
-    let signature: string;
-    console.log('[authenticateWallet] Signing challenge via MWA...');
-    try {
-      signature = await signAuthMessage(challenge.message, mwaAuthToken);
-    } catch (signErr: any) {
-      console.log('[authenticateWallet] Sign failed with stored token:', signErr?.message, '— re-authorizing...');
-      const freshAuth = await authorizeWallet();
-      walletAddress = freshAuth.address;
-      mwaAuthToken = freshAuth.authToken;
-      await AsyncStorage.setItem(STORAGE_KEY_WALLET, walletAddress);
-      await AsyncStorage.setItem(STORAGE_KEY_AUTH_TOKEN, mwaAuthToken);
-      set({ walletAddress });
-
-      // Re-fetch challenge for the (possibly different) wallet address
-      const newChallenge = await api.getChallenge(walletAddress);
-      signature = await signAuthMessage(newChallenge.message, mwaAuthToken);
-      challenge.nonce = newChallenge.nonce;
-    }
-    console.log('[authenticateWallet] Challenge signed — signature:', signature.slice(0, 16) + '...');
+    // Store MWA auth token for future transaction signing
+    await AsyncStorage.setItem(STORAGE_KEY_WALLET, address);
+    await AsyncStorage.setItem(STORAGE_KEY_AUTH_TOKEN, authToken);
 
     // Verify signature with backend, get JWT (pass name for new players)
-    console.log('[authenticateWallet] Verifying signature with backend...');
-    const result = await api.verifySignature(walletAddress, signature, challenge.nonce, name);
+    const result = await api.verifySignature(address, signature, nonce, name);
     console.log('[authenticateWallet] Verified! Player:', result.player.name, 'id:', result.player.id);
 
     // Store JWT and set auth
@@ -168,7 +142,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     await AsyncStorage.setItem(STORAGE_KEY_NAME, result.player.name);
 
     set({
-      walletAddress,
+      walletAddress: address,
       playerId: result.player.id,
       playerName: result.player.name,
       coins: result.player.coins ?? 1000,

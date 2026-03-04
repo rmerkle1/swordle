@@ -54,6 +54,51 @@ export async function signAuthMessage(message: string, authToken: string): Promi
 }
 
 /**
+ * Authorize + fetch challenge + sign in a single MWA transact session.
+ * This avoids the stale reauthorize issue by doing everything in one wallet popup.
+ * The challengeFetcher is called mid-session to get the challenge from the backend.
+ */
+export async function authorizeAndSignChallenge(
+  challengeFetcher: (address: string) => Promise<{ message: string; nonce: string }>
+): Promise<{ address: string; authToken: string; signature: string; nonce: string }> {
+  const result = await transact(async (wallet) => {
+    // Step 1: Authorize (gets address)
+    const auth = await wallet.authorize({
+      cluster: 'devnet',
+      identity: APP_IDENTITY,
+    });
+
+    const base64Addr = auth.accounts[0].address;
+    const pubkeyBytes = Buffer.from(base64Addr, 'base64');
+    const address = new PublicKey(pubkeyBytes).toBase58();
+
+    // Step 2: Fetch challenge from backend (mid-session HTTP call)
+    const challenge = await challengeFetcher(address);
+
+    // Step 3: Sign the challenge message
+    const msgBytes = new TextEncoder().encode(challenge.message);
+    const signed = await wallet.signMessages({
+      addresses: [],
+      payloads: [msgBytes],
+    });
+
+    return {
+      address,
+      authToken: auth.auth_token,
+      signatureBytes: signed[0],
+      nonce: challenge.nonce,
+    };
+  });
+
+  return {
+    address: result.address,
+    authToken: result.authToken,
+    signature: Buffer.from(result.signatureBytes).toString('base64'),
+    nonce: result.nonce,
+  };
+}
+
+/**
  * Sign a Solana transaction via MWA (for $SKR transfers, etc.).
  * Takes a base64-encoded serialized transaction, returns base64-encoded signed transaction.
  */
