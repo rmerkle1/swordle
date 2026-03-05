@@ -54,38 +54,41 @@ export async function signAuthMessage(message: string, authToken: string): Promi
 }
 
 /**
- * Authorize + sign a pre-fetched challenge message in a single MWA transact session.
- * The challenge must be fetched BEFORE calling this (no HTTP calls mid-session).
+ * Authorize with Sign In With Solana (SIWS) — single wallet command.
+ * Uses sign_in_payload in the authorize call so the wallet signs a SIWS message
+ * as part of authorization itself. No separate signMessages needed.
+ * The nonce must be fetched from the backend BEFORE calling this.
  */
-export async function authorizeAndSign(
-  message: string
-): Promise<{ address: string; authToken: string; signature: string }> {
-  const msgBytes = new TextEncoder().encode(message);
-
+export async function authorizeWithSignIn(
+  nonce: string
+): Promise<{ address: string; authToken: string; signedMessage: string; signature: string }> {
   const result = await transact(async (wallet) => {
-    // Step 1: Authorize
-    const auth = await wallet.authorize({
-      cluster: 'devnet',
+    const auth = await (wallet as any).authorize({
       identity: APP_IDENTITY,
+      chain: 'solana:devnet',
+      sign_in_payload: {
+        domain: 'swordle.app',
+        statement: 'Sign in to Swordle',
+        nonce,
+      },
     });
-
-    // Step 2: Sign the message (same session, no network calls in between)
-    const signed = await wallet.signMessages({
-      addresses: [],
-      payloads: [msgBytes],
-    });
-
-    return { auth, signatureBytes: signed[0] };
+    return auth;
   });
 
-  const base64Addr = result.auth.accounts[0].address;
+  const base64Addr = result.accounts[0].address;
   const pubkeyBytes = Buffer.from(base64Addr, 'base64');
   const address = new PublicKey(pubkeyBytes).toBase58();
 
+  const signInResult = (result as any).sign_in_result;
+  if (!signInResult) {
+    throw new Error('Wallet did not return sign_in_result — SIWS may not be supported');
+  }
+
   return {
     address,
-    authToken: result.auth.auth_token,
-    signature: Buffer.from(result.signatureBytes).toString('base64'),
+    authToken: result.auth_token,
+    signedMessage: signInResult.signed_message, // base64-encoded SIWS message bytes
+    signature: signInResult.signature,           // base64-encoded Ed25519 signature
   };
 }
 

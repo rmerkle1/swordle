@@ -41,13 +41,13 @@ export const api = {
     });
   },
 
-  async verifySignature(pubkey: string, signature: string, nonce: string, playerName?: string): Promise<{
+  async verifySignature(pubkey: string, signature: string, nonce: string, playerName?: string, signedMessage?: string): Promise<{
     token: string;
     player: { id: string; name: string; pubkey: string; coins: number; gamesToday: number };
   }> {
     return fetchJson(`${API_BASE}/auth/verify`, {
       method: 'POST',
-      body: JSON.stringify({ pubkey, signature, nonce, playerName }),
+      body: JSON.stringify({ pubkey, signature, nonce, playerName, signedMessage }),
     });
   },
 

@@ -33,7 +33,7 @@ router.post('/challenge', (req: Request, res: Response) => {
 // POST /verify — verify signature and issue JWT
 router.post('/verify', async (req: Request, res: Response) => {
   try {
-    const { pubkey, signature, nonce, playerName } = req.body;
+    const { pubkey, signature, nonce, playerName, signedMessage } = req.body;
     if (!pubkey || !signature || !nonce) {
       res.status(400).json({ error: 'pubkey, signature, and nonce are required' });
       return;
@@ -55,9 +55,23 @@ router.post('/verify', async (req: Request, res: Response) => {
     // Delete nonce (one-time use)
     nonces.delete(nonce);
 
-    // Reconstruct message and verify Ed25519 signature
-    const message = `Sign in to Swordle: ${nonce}`;
-    const msgBytes = new TextEncoder().encode(message);
+    // Determine message bytes to verify against
+    let msgBytes: Uint8Array;
+    if (signedMessage) {
+      // SIWS flow: wallet constructed the message, sent as base64
+      msgBytes = Buffer.from(signedMessage, 'base64');
+      // Verify the nonce is embedded in the SIWS message
+      const messageText = new TextDecoder().decode(msgBytes);
+      if (!messageText.includes(`Nonce: ${nonce}`)) {
+        res.status(401).json({ error: 'SIWS message does not contain expected nonce' });
+        return;
+      }
+    } else {
+      // Legacy flow: reconstruct our simple message
+      const message = `Sign in to Swordle: ${nonce}`;
+      msgBytes = new TextEncoder().encode(message);
+    }
+
     const sigBytes = Buffer.from(signature, 'base64');
     const pubkeyBytes = bs58.decode(pubkey);
 
