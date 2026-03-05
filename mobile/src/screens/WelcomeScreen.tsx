@@ -2,36 +2,13 @@ import React, { useState } from 'react';
 import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { COLORS } from '../constants/theme';
 import { usePlayerStore } from '../store/playerStore';
-import { truncateAddress } from '../utils/wallet';
 import { UI_IMAGES } from '../assets';
 
 export default function WelcomeScreen() {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { walletAddress, connectWallet, authenticateWallet } = usePlayerStore();
-
-  const handleConnectWallet = async () => {
-    setLoading(true);
-    setError('');
-    console.log('[WelcomeScreen] Connect Wallet pressed');
-    try {
-      await connectWallet();
-      console.log('[WelcomeScreen] connectWallet succeeded');
-    } catch (err: any) {
-      console.error('[WelcomeScreen] connectWallet error:', err?.message, err);
-      const msg = err?.message || '';
-      if (msg.includes('Found no installed wallet')) {
-        setError('No Solana wallet found. Install Phantom or another wallet app.');
-      } else if (msg.includes('AUTHORIZATION_DECLINED') || msg.includes('declined')) {
-        setError('Wallet connection was declined.');
-      } else {
-        setError(msg || 'Failed to connect wallet.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { authenticateWallet } = usePlayerStore();
 
   const handleStart = async () => {
     const trimmed = name.trim();
@@ -46,7 +23,7 @@ export default function WelcomeScreen() {
 
     setLoading(true);
     setError('');
-    console.log('[WelcomeScreen] Start Playing pressed — name:', trimmed);
+    console.log('[WelcomeScreen] Connect & Start pressed — name:', trimmed);
     try {
       await authenticateWallet(trimmed);
       console.log('[WelcomeScreen] authenticateWallet succeeded');
@@ -54,9 +31,9 @@ export default function WelcomeScreen() {
       console.error('[WelcomeScreen] authenticateWallet error:', err?.message, err);
       const msg = err?.message || '';
       if (msg.includes('Found no installed wallet')) {
-        setError('No Solana wallet found. Install Phantom or another wallet app.');
+        setError('No Solana wallet found. Install a wallet app.');
       } else if (msg.includes('AUTHORIZATION_DECLINED') || msg.includes('declined')) {
-        setError('Wallet signing was declined.');
+        setError('Wallet connection was declined.');
       } else {
         setError(msg || 'Failed to authenticate. Is the server running?');
       }
@@ -64,72 +41,41 @@ export default function WelcomeScreen() {
     }
   };
 
-  // Step 2: Wallet connected — show name input
-  if (walletAddress) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.titleRow}>
-          <Image source={UI_IMAGES.logo} style={styles.titleLogo} />
-          <Text style={styles.title}> Swordle</Text>
-        </View>
-
-        <View style={styles.addressBadge}>
-          <Text style={styles.addressLabel}>Wallet Connected</Text>
-          <Text style={styles.addressText}>{truncateAddress(walletAddress)}</Text>
-        </View>
-
-        <Text style={styles.subtitle}>Choose your name</Text>
-
-        <TextInput
-          style={styles.input}
-          placeholder="Enter name..."
-          placeholderTextColor={COLORS.textSecondary}
-          value={name}
-          onChangeText={setName}
-          maxLength={20}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleStart}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Start Playing</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  // Step 1: Connect Wallet
   return (
     <View style={styles.container}>
       <View style={styles.titleRow}>
         <Image source={UI_IMAGES.logo} style={styles.titleLogo} />
         <Text style={styles.title}> Swordle</Text>
       </View>
-      <Text style={styles.subtitle}>Connect your Solana wallet to begin</Text>
+
+      <Text style={styles.subtitle}>Choose your name to get started</Text>
+
+      <TextInput
+        style={styles.input}
+        placeholder="Enter name..."
+        placeholderTextColor={COLORS.textSecondary}
+        value={name}
+        onChangeText={setName}
+        maxLength={20}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <TouchableOpacity
         style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleConnectWallet}
+        onPress={handleStart}
         disabled={loading}
       >
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.buttonText}>Connect Wallet</Text>
+          <Text style={styles.buttonText}>Connect Wallet & Start</Text>
         )}
       </TouchableOpacity>
+
+      <Text style={styles.hint}>You'll be prompted to connect your Solana wallet</Text>
     </View>
   );
 }
@@ -160,26 +106,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontSize: 16,
     marginBottom: 32,
-  },
-  addressBadge: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  addressLabel: {
-    color: COLORS.accent,
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    marginBottom: 2,
-  },
-  addressText: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontFamily: 'monospace',
   },
   input: {
     width: '100%',
@@ -213,5 +139,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  hint: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    marginTop: 16,
+    opacity: 0.7,
   },
 });
