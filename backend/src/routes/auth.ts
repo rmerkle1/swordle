@@ -8,8 +8,8 @@ import { mintFighterNFT } from '../services/nftService';
 
 const router = Router();
 
-// In-memory nonce store with TTL
-const nonces = new Map<string, { pubkey: string; expires: number }>();
+// In-memory nonce store with TTL (nonce → expiry time)
+const nonces = new Map<string, { expires: number }>();
 
 const NONCE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -21,16 +21,10 @@ setInterval(() => {
   }
 }, 60_000);
 
-// POST /challenge — request a sign-in challenge
+// POST /challenge — request a sign-in challenge (pubkey optional)
 router.post('/challenge', (req: Request, res: Response) => {
-  const { pubkey } = req.body;
-  if (!pubkey || typeof pubkey !== 'string') {
-    res.status(400).json({ error: 'pubkey is required' });
-    return;
-  }
-
   const nonce = crypto.randomBytes(32).toString('hex');
-  nonces.set(nonce, { pubkey, expires: Date.now() + NONCE_TTL_MS });
+  nonces.set(nonce, { expires: Date.now() + NONCE_TTL_MS });
 
   const message = `Sign in to Swordle: ${nonce}`;
   res.json({ message, nonce });
@@ -55,11 +49,6 @@ router.post('/verify', async (req: Request, res: Response) => {
     if (entry.expires < Date.now()) {
       nonces.delete(nonce);
       res.status(401).json({ error: 'Nonce expired' });
-      return;
-    }
-
-    if (entry.pubkey !== pubkey) {
-      res.status(401).json({ error: 'Pubkey mismatch' });
       return;
     }
 

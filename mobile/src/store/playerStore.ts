@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PlayerStats } from '../types';
 import { api, setAuthToken } from '../services/api';
-import { authorizeWallet, deauthorizeWallet, authorizeAndSignChallenge } from '../utils/wallet';
+import { authorizeWallet, deauthorizeWallet, authorizeAndSign } from '../utils/wallet';
 
 const STORAGE_KEY_ID = 'swordle_player_id';
 const STORAGE_KEY_NAME = 'swordle_player_name';
@@ -112,25 +112,23 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   authenticateWallet: async (name: string) => {
     console.log('[authenticateWallet] Starting with name:', name);
 
-    // Single MWA session: authorize + fetch challenge + sign — one wallet popup
+    // Step 1: Fetch challenge from backend BEFORE opening wallet (no HTTP mid-session)
+    console.log('[authenticateWallet] Fetching challenge from backend...');
+    const challenge = await api.getChallenge('');
+    console.log('[authenticateWallet] Challenge received — nonce:', challenge.nonce.slice(0, 8) + '...');
+
+    // Step 2: Single MWA session: authorize + sign challenge — one wallet popup, no network calls
     console.log('[authenticateWallet] Opening wallet for authorize + sign...');
-    const { address, authToken, signature, nonce } = await authorizeAndSignChallenge(
-      async (addr) => {
-        console.log('[authenticateWallet] Wallet authorized, address:', addr.slice(0, 8) + '...');
-        console.log('[authenticateWallet] Fetching challenge from backend...');
-        const challenge = await api.getChallenge(addr);
-        console.log('[authenticateWallet] Challenge received, signing...');
-        return challenge;
-      }
-    );
-    console.log('[authenticateWallet] Signed! Verifying with backend...');
+    const { address, authToken, signature } = await authorizeAndSign(challenge.message);
+    console.log('[authenticateWallet] Signed! Address:', address.slice(0, 8) + '...');
 
     // Store MWA auth token for future transaction signing
     await AsyncStorage.setItem(STORAGE_KEY_WALLET, address);
     await AsyncStorage.setItem(STORAGE_KEY_AUTH_TOKEN, authToken);
 
-    // Verify signature with backend, get JWT (pass name for new players)
-    const result = await api.verifySignature(address, signature, nonce, name);
+    // Step 3: Verify signature with backend, get JWT
+    console.log('[authenticateWallet] Verifying with backend...');
+    const result = await api.verifySignature(address, signature, challenge.nonce, name);
     console.log('[authenticateWallet] Verified! Player:', result.player.name, 'id:', result.player.id);
 
     // Store JWT and set auth

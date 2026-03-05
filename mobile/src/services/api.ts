@@ -34,10 +34,10 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 export const api = {
   // --- Auth endpoints ---
 
-  async getChallenge(pubkey: string): Promise<{ message: string; nonce: string }> {
+  async getChallenge(pubkey?: string): Promise<{ message: string; nonce: string }> {
     return fetchJson<{ message: string; nonce: string }>(`${API_BASE}/auth/challenge`, {
       method: 'POST',
-      body: JSON.stringify({ pubkey }),
+      body: JSON.stringify(pubkey ? { pubkey } : {}),
     });
   },
 

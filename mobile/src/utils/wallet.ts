@@ -54,47 +54,38 @@ export async function signAuthMessage(message: string, authToken: string): Promi
 }
 
 /**
- * Authorize + fetch challenge + sign in a single MWA transact session.
- * This avoids the stale reauthorize issue by doing everything in one wallet popup.
- * The challengeFetcher is called mid-session to get the challenge from the backend.
+ * Authorize + sign a pre-fetched challenge message in a single MWA transact session.
+ * The challenge must be fetched BEFORE calling this (no HTTP calls mid-session).
  */
-export async function authorizeAndSignChallenge(
-  challengeFetcher: (address: string) => Promise<{ message: string; nonce: string }>
-): Promise<{ address: string; authToken: string; signature: string; nonce: string }> {
+export async function authorizeAndSign(
+  message: string
+): Promise<{ address: string; authToken: string; signature: string }> {
+  const msgBytes = new TextEncoder().encode(message);
+
   const result = await transact(async (wallet) => {
-    // Step 1: Authorize (gets address)
+    // Step 1: Authorize
     const auth = await wallet.authorize({
       cluster: 'devnet',
       identity: APP_IDENTITY,
     });
 
-    const base64Addr = auth.accounts[0].address;
-    const pubkeyBytes = Buffer.from(base64Addr, 'base64');
-    const address = new PublicKey(pubkeyBytes).toBase58();
-
-    // Step 2: Fetch challenge from backend (mid-session HTTP call)
-    const challenge = await challengeFetcher(address);
-
-    // Step 3: Sign the challenge message
-    const msgBytes = new TextEncoder().encode(challenge.message);
+    // Step 2: Sign the message (same session, no network calls in between)
     const signed = await wallet.signMessages({
       addresses: [],
       payloads: [msgBytes],
     });
 
-    return {
-      address,
-      authToken: auth.auth_token,
-      signatureBytes: signed[0],
-      nonce: challenge.nonce,
-    };
+    return { auth, signatureBytes: signed[0] };
   });
 
+  const base64Addr = result.auth.accounts[0].address;
+  const pubkeyBytes = Buffer.from(base64Addr, 'base64');
+  const address = new PublicKey(pubkeyBytes).toBase58();
+
   return {
-    address: result.address,
-    authToken: result.authToken,
+    address,
+    authToken: result.auth.auth_token,
     signature: Buffer.from(result.signatureBytes).toString('base64'),
-    nonce: result.nonce,
   };
 }
 
