@@ -73,7 +73,7 @@ export default function MoveSelector({
 
   const isOptionEnabled = (option: BuildOption) => canAfford(option) && canPlace(option);
 
-  const isSubmitReady = isStunned || (selectedAction !== null
+  const isSubmitReady = (selectedAction !== null
     && (selectedAction !== 'build' || buildOption !== null)
     && (!needsTarget || attackTarget != null));
 
@@ -94,14 +94,14 @@ export default function MoveSelector({
         <View style={styles.stunnedBanner}>
           <View style={styles.stunnedRow}>
             <Image source={UI_IMAGES.stunned} style={styles.inlineIcon} />
-            <Text style={styles.stunnedText}> Stunned — you can move but cannot act this turn</Text>
+            <Text style={styles.stunnedText}> Stunned — you cannot move but can still act</Text>
           </View>
         </View>
       )}
       <View style={styles.actions}>
         {ACTIONS.map((action) => {
           const canCollect = targetTileType === 'forest' || targetTileType === 'mountain';
-          const disabled = isStunned || isLocked
+          const disabled = isLocked
             || (action === 'collect' && !canCollect)
             || (targetTileType === 'wall' && action !== 'attack')
             || (action === 'build' && LANDMARK_TILE_TYPES.has(targetTileType));

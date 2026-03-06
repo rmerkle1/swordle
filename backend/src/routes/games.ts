@@ -526,6 +526,82 @@ router.post('/:id/leave', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+// POST /:id/chat — send an in-game chat message (1 per day, 140 chars max)
+router.post('/:id/chat', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const gameId = parseInt(req.params.id, 10);
+    if (isNaN(gameId)) {
+      res.status(400).json({ error: 'Invalid game ID' });
+      return;
+    }
+
+    const { message } = req.body;
+    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+      res.status(400).json({ error: 'Message is required' });
+      return;
+    }
+    if (message.length > 140) {
+      res.status(400).json({ error: 'Message must be 140 characters or less' });
+      return;
+    }
+
+    const playerId = req.playerId!;
+
+    // Fetch game
+    const gameRes = await query('SELECT * FROM games WHERE id = $1', [gameId]);
+    if (gameRes.rows.length === 0) {
+      res.status(404).json({ error: 'Game not found' });
+      return;
+    }
+    const gameRow = gameRes.rows[0];
+    if (gameRow.status !== 'active') {
+      res.status(400).json({ error: 'Game is not active' });
+      return;
+    }
+
+    // Find game_player
+    const gpRes = await query(
+      'SELECT * FROM game_players WHERE game_id = $1 AND player_id = $2',
+      [gameId, playerId]
+    );
+    if (gpRes.rows.length === 0) {
+      res.status(404).json({ error: 'Player not in this game' });
+      return;
+    }
+    const gp = gpRes.rows[0];
+    if (gp.status !== 'active') {
+      res.status(400).json({ error: 'Player is eliminated' });
+      return;
+    }
+
+    // Day = current_day + 1 (the day being planned for)
+    const chatDay = gameRow.current_day + 1;
+
+    // Check for existing chat this day
+    const existingChat = await query(
+      `SELECT id FROM game_events WHERE game_id = $1 AND player_id = $2 AND day = $3 AND event_type = 'chat'`,
+      [gameId, gp.id, chatDay]
+    );
+    if (existingChat.rows.length > 0) {
+      res.status(400).json({ error: 'Already sent a message today' });
+      return;
+    }
+
+    // Insert chat event
+    await query(
+      `INSERT INTO game_events (game_id, day, event_type, message, player_id)
+       VALUES ($1, $2, 'chat', $3, $4)`,
+      [gameId, chatDay, message.trim(), gp.id]
+    );
+
+    emitGameUpdate(gameId);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Chat route error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /:id/confirm-entry — confirm $SKR entry fee (client signs tx, backend submits)
 router.post('/:id/confirm-entry', requireAuth, async (req: Request, res: Response) => {
   try {

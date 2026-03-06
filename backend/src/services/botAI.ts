@@ -3,9 +3,9 @@ import { getAdjacentTiles } from './gameEngine';
 import { FighterClass } from '../types';
 
 const BUILD_COSTS: Record<string, { wood: number; metal: number }> = {
-  wall: { wood: 2, metal: 1 },
-  trap: { wood: 1, metal: 2 },
-  upgrade: { wood: 3, metal: 1 },
+  wall: { wood: 1, metal: 0 },
+  trap: { wood: 0, metal: 1 },
+  upgrade: { wood: 1, metal: 1 },
 };
 
 interface BotPlayer {

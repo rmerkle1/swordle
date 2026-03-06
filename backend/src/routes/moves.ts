@@ -9,9 +9,9 @@ import { requireAuth } from '../middleware/auth';
 const router = Router({ mergeParams: true });
 
 const BUILD_COSTS: Record<string, { wood: number; metal: number }> = {
-  wall: { wood: 2, metal: 1 },
-  trap: { wood: 1, metal: 2 },
-  upgrade: { wood: 3, metal: 1 },
+  wall: { wood: 1, metal: 0 },
+  trap: { wood: 0, metal: 1 },
+  upgrade: { wood: 1, metal: 1 },
 };
 
 const moveSchema = z.object({
@@ -307,7 +307,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     // Block build on landmark tiles
     if (action === 'build' && tileRes.rows.length > 0) {
       const tileType = tileRes.rows[0].tile_type;
-      if (['forest', 'mountain', 'water'].includes(tileType)) {
+      if (['forest', 'mountain', 'water', 'trap'].includes(tileType)) {
         res.status(400).json({ error: `Cannot build on ${tileType} tile` });
         return;
       }
@@ -339,11 +339,65 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       throw err;
     }
 
+    // Scout real-time reveals: notify adjacent scouting players about this move
+    try {
+      const boardSize = Math.round(Math.sqrt(game.map_size));
+      const submitterPos = player.current_position;
+      // Find players who scouted last day (last_scout_day = current_day, i.e. the day that just resolved)
+      const scoutRes = await query(
+        `SELECT * FROM game_players WHERE game_id = $1 AND status = 'active' AND last_scout_day = $2 AND id != $3`,
+        [gameId, game.current_day, gamePlayerId]
+      );
+      for (const scout of scoutRes.rows) {
+        const adjTiles = getAdjacentTiles(scout.current_position, boardSize);
+        if (adjTiles.includes(submitterPos)) {
+          // Insert scout reveal event visible only to the scouting player
+          await query(
+            `INSERT INTO game_events (game_id, day, event_type, message, player_id, visible_to_player_id)
+             VALUES ($1, $2, 'scout', $3, $4, $5)`,
+            [
+              gameId, nextDay,
+              `${scout.display_name} scouted: ${player.display_name} chose ${action}`,
+              scout.id, scout.id,
+            ]
+          );
+          emitGameUpdate(gameId);
+        }
+      }
+    } catch (scoutErr: any) {
+      console.error('Scout real-time reveal failed:', scoutErr.message);
+    }
+
     // Submit AI moves for all bots in this game
     try {
       await submitBotMoves(gameId);
     } catch (botErr: any) {
       console.error('Bot AI submission failed:', botErr.message);
+    }
+
+    // Fallback: auto-insert defend-in-place for any bots that still haven't submitted
+    try {
+      const missingBotRes = await query(
+        `SELECT gp.id, gp.current_position
+         FROM game_players gp
+         WHERE gp.game_id = $1 AND gp.status = 'active'
+           AND gp.player_pubkey LIKE 'bot_%'
+           AND gp.id NOT IN (
+             SELECT m.game_player_id FROM moves m
+             WHERE m.game_id = $1 AND m.day = $2
+           )`,
+        [gameId, nextDay]
+      );
+      for (const bot of missingBotRes.rows) {
+        await query(
+          `INSERT INTO moves (game_id, game_player_id, day, destination, action)
+           VALUES ($1, $2, $3, $4, 'defend')
+           ON CONFLICT (game_id, game_player_id, day) DO NOTHING`,
+          [gameId, bot.id, nextDay, bot.current_position]
+        );
+      }
+    } catch (fallbackErr: any) {
+      console.error('Bot fallback defend failed:', fallbackErr.message);
     }
 
     // Auto-process day if all alive players have submitted moves

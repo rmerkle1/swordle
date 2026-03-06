@@ -16,9 +16,9 @@ const STORM_MIN_TILES = 4;
 const FIGHTER_COLORS = ['red', 'blue', 'yellow', 'purple', 'green'];
 
 const BUILD_COSTS: Record<string, { wood: number; metal: number }> = {
-  wall: { wood: 2, metal: 1 },
-  trap: { wood: 1, metal: 2 },
-  upgrade: { wood: 3, metal: 1 },
+  wall: { wood: 1, metal: 0 },
+  trap: { wood: 0, metal: 1 },
+  upgrade: { wood: 1, metal: 1 },
 };
 
 export function getAdjacentTiles(tileIndex: number, boardSize: number): number[] {
@@ -233,24 +233,22 @@ export function resolveMoves(
     const player = playerMap.get(move.playerId);
     if (!player || !player.isAlive) continue;
 
-    if (bumpedBack.has(move.playerId)) {
+    // Check if player was stunned from previous round — can't move but can still act
+    const originalPlayer = players.find((p) => p.id === move.playerId);
+    if (bumpedBack.has(move.playerId) || originalPlayer?.isStunned) {
       // stay at current position
+      if (originalPlayer?.isStunned) {
+        events.push({
+          id: `ev-${day}-${eventId++}`, day,
+          message: `${move.playerName} is recovering from stun (cannot move)`,
+          playerId: move.playerId, playerName: move.playerName, playerColor: move.playerColor,
+        });
+      }
     } else {
       player.position = move.toTile;
     }
 
     player.isStunned = stunned.has(move.playerId);
-
-    // Check if player was stunned from previous round
-    const originalPlayer = players.find((p) => p.id === move.playerId);
-    if (originalPlayer?.isStunned) {
-      events.push({
-        id: `ev-${day}-${eventId++}`, day,
-        message: `${move.playerName} is recovering from stun (no action)`,
-        playerId: move.playerId, playerName: move.playerName, playerColor: move.playerColor,
-      });
-      continue;
-    }
 
     const destTile = updatedTiles[move.toTile];
     switch (move.action) {
@@ -472,6 +470,9 @@ export function resolveMoves(
     const player = playerMap.get(move.playerId);
     if (!player) continue;
 
+    // Mark scout active for real-time reveals next day
+    player.lastScoutDay = day;
+
     const adjacent = getAdjacentTiles(player.position, game.boardSize);
     for (const adjTile of adjacent) {
       // Reveal adjacent players
@@ -484,6 +485,7 @@ export function resolveMoves(
               id: `ev-${day}-${eventId++}`, day,
               message: `${move.playerName} scouted: ${other.name} chose ${otherMove.action}`,
               playerId: move.playerId, playerName: move.playerName, playerColor: move.playerColor,
+              visibleToPlayerId: move.playerId,
             });
           }
         }
@@ -496,6 +498,7 @@ export function resolveMoves(
           message: `${move.playerName} scouted a trap at tile ${adjTile}!`,
           playerId: move.playerId, playerName: move.playerName, playerColor: move.playerColor,
           trapRevealTile: adjTile,
+          visibleToPlayerId: move.playerId,
         });
       }
     }
@@ -584,6 +587,7 @@ function toGamePlayer(row: any): GamePlayer {
     isStunned: row.is_stunned,
     daysInStorm: row.days_in_storm,
     stormRevealed: row.storm_revealed,
+    lastScoutDay: row.last_scout_day ?? 0,
   };
 }
 
@@ -691,13 +695,13 @@ export async function processDay(gameId: number): Promise<Game> {
         `UPDATE game_players SET
           current_position = $1, wood = $2, metal = $3, weapon_tier = $4,
           status = $5, is_stunned = $6, days_in_storm = $7, storm_revealed = $8,
-          last_move_day = $9
-        WHERE id = $10`,
+          last_move_day = $9, last_scout_day = $10
+        WHERE id = $11`,
         [
           player.position, player.wood, player.metal, player.weaponTier,
           player.isAlive ? 'active' : 'eliminated',
           player.isStunned, player.daysInStorm, player.stormRevealed,
-          nextDay, parseInt(player.id, 10),
+          nextDay, player.lastScoutDay, parseInt(player.id, 10),
         ]
       );
       if (!player.isAlive) {
@@ -725,10 +729,11 @@ export async function processDay(gameId: number): Promise<Game> {
     // Insert events
     for (const event of result.newEvents) {
       const gpId = event.playerId ? parseInt(event.playerId, 10) : null;
+      const visibleTo = event.visibleToPlayerId ? parseInt(event.visibleToPlayerId, 10) : null;
       await client.query(
-        `INSERT INTO game_events (game_id, day, event_type, message, player_id, tile_index, details)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [gameId, event.day, 'move', event.message, gpId, event.trapRevealTile ?? null, null]
+        `INSERT INTO game_events (game_id, day, event_type, message, player_id, tile_index, details, visible_to_player_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [gameId, event.day, 'move', event.message, gpId, event.trapRevealTile ?? null, null, visibleTo]
       );
     }
 
@@ -860,6 +865,8 @@ export async function getFullGame(gameId: number): Promise<Game> {
     playerName: r.display_name || undefined,
     playerColor: r.color || undefined,
     trapRevealTile: r.tile_index ?? undefined,
+    visibleToPlayerId: r.visible_to_player_id ? String(r.visible_to_player_id) : undefined,
+    eventType: r.event_type || undefined,
   }));
 
   const winnerGpRes = g.winner_pubkey
@@ -922,5 +929,10 @@ export async function getFilteredGame(gameId: number, gamePlayerId?: number): Pr
     return t;
   });
 
-  return { ...game, players: filteredPlayers, tiles: filteredTiles };
+  // Filter events: hide events scoped to other players
+  const filteredEvents = game.events.filter(
+    (e) => !e.visibleToPlayerId || e.visibleToPlayerId === String(gamePlayerId)
+  );
+
+  return { ...game, players: filteredPlayers, tiles: filteredTiles, events: filteredEvents };
 }

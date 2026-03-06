@@ -22,8 +22,14 @@ export async function processExpiredDeadlines(): Promise<void> {
     const gameId = game.id;
     const nextDay = game.current_day + 1;
 
-    // Only process each game once per calendar day
-    if (processedToday.get(gameId) === todayUTC) continue;
+    // Only process each game once per calendar day (skip for games with active bots)
+    if (processedToday.get(gameId) === todayUTC) {
+      const botCheck = await query(
+        `SELECT 1 FROM game_players WHERE game_id = $1 AND status = 'active' AND player_pubkey LIKE 'bot_%' LIMIT 1`,
+        [gameId]
+      );
+      if (botCheck.rows.length === 0) continue;
+    }
 
     try {
       // Submit AI moves for bots before falling back to defend-in-place

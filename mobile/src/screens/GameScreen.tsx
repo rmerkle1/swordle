@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useCallback, useState, useRef } from 'react';
-import { View, Text, Image, ScrollView, StyleSheet, TouchableOpacity, Alert, useWindowDimensions } from 'react-native';
+import { View, Text, Image, ScrollView, StyleSheet, TouchableOpacity, TextInput, Alert, useWindowDimensions } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
@@ -45,6 +45,9 @@ export default function GameScreen() {
   const [isSelectingTarget, setIsSelectingTarget] = useState(false);
   const [deadlineRemaining, setDeadlineRemaining] = useState<string | null>(null);
   const [deadlineUrgent, setDeadlineUrgent] = useState(false);
+  const [chatText, setChatText] = useState('');
+  const [chatSentDay, setChatSentDay] = useState<number | null>(null);
+  const [chatSending, setChatSending] = useState(false);
   const { height: windowHeight } = useWindowDimensions();
 
   // Move deadline countdown
@@ -306,6 +309,11 @@ export default function GameScreen() {
       return;
     }
 
+    // Stunned players can only select their current tile (cannot move)
+    if (myPlayer?.isStunned && tileIndex !== myPlayer.position) {
+      return;
+    }
+
     if (selectedTile === tileIndex) {
       resetMove();
     } else if (validTargets.has(tileIndex)) {
@@ -313,7 +321,7 @@ export default function GameScreen() {
     } else {
       resetMove();
     }
-  }, [selectedTile, validTargets, submittedMove, currentGame?.currentDay, isSelectingTarget, validAttackTargets]);
+  }, [selectedTile, validTargets, submittedMove, currentGame?.currentDay, isSelectingTarget, validAttackTargets, myPlayer?.isStunned, myPlayer?.position]);
 
   const handleSubmit = useCallback(async () => {
     if (!currentGame || !myPlayer || selectedTile === null || !pendingAction) return;
@@ -405,6 +413,40 @@ export default function GameScreen() {
       },
     ]);
   }, [currentGame, playerId]);
+
+  const handleSendChat = useCallback(async () => {
+    if (!currentGame || !chatText.trim() || chatSending) return;
+    setChatSending(true);
+    try {
+      await api.sendChat(currentGame.id, chatText.trim());
+      setChatSentDay(currentGame.currentDay);
+      setChatText('');
+    } catch (err: any) {
+      setErrorBanner(err.message || 'Failed to send message');
+      setTimeout(() => setErrorBanner(null), 3000);
+    } finally {
+      setChatSending(false);
+    }
+  }, [currentGame, chatText, chatSending]);
+
+  // Reset chat sent status when day changes
+  useEffect(() => {
+    if (currentGame && chatSentDay !== null && chatSentDay !== currentGame.currentDay) {
+      setChatSentDay(null);
+    }
+  }, [currentGame?.currentDay, chatSentDay]);
+
+  // Detect if we already sent a chat this day from events
+  useEffect(() => {
+    if (!currentGame || !myPlayer) return;
+    const chatDay = currentGame.currentDay + 1;
+    const alreadySent = currentGame.events.some(
+      (e) => e.eventType === 'chat' && e.playerId === myPlayer.id && e.day === chatDay
+    );
+    if (alreadySent) setChatSentDay(currentGame.currentDay);
+  }, [currentGame?.events, currentGame?.currentDay, myPlayer?.id]);
+
+  const canChat = currentGame?.status === 'active' && myPlayer?.isAlive && chatSentDay !== currentGame?.currentDay;
 
   if (!currentGame) {
     return (
@@ -597,6 +639,26 @@ export default function GameScreen() {
 
           />
         )}
+        {!isEliminated && (
+          <View style={styles.chatContainer}>
+            <TextInput
+              style={[styles.chatInput, !canChat && styles.chatInputDisabled]}
+              placeholder={chatSentDay === currentGame.currentDay ? 'Message sent today' : 'Send a message...'}
+              placeholderTextColor={COLORS.textSecondary}
+              value={chatText}
+              onChangeText={setChatText}
+              maxLength={140}
+              editable={canChat}
+            />
+            <TouchableOpacity
+              style={[styles.chatSendBtn, (!canChat || !chatText.trim()) && styles.chatSendBtnDisabled]}
+              onPress={handleSendChat}
+              disabled={!canChat || !chatText.trim() || chatSending}
+            >
+              <Text style={styles.chatSendTxt}>Send</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         {currentGame.events.length > 0 && (
           <GameLog events={currentGame.events} />
         )}
@@ -760,5 +822,40 @@ const styles = StyleSheet.create({
   },
   deadlineUrgent: {
     color: COLORS.error,
+  },
+  chatContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 8,
+    marginTop: 8,
+    gap: 8,
+  },
+  chatInput: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+    color: COLORS.text,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceLight,
+  },
+  chatInputDisabled: {
+    opacity: 0.5,
+  },
+  chatSendBtn: {
+    backgroundColor: COLORS.accent,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  chatSendBtnDisabled: {
+    opacity: 0.4,
+  },
+  chatSendTxt: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

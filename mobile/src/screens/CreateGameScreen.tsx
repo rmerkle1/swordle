@@ -89,7 +89,16 @@ export default function CreateGameScreen() {
     setCreating(false);
   };
 
-  const playerCounts = [2, 3, 4, 6, 8, 10, 12, 16];
+  const [playerCountText, setPlayerCountText] = useState(String(maxPlayers));
+
+  const clampPlayers = (n: number) => Math.max(2, Math.min(16, n));
+
+  const updateMaxPlayers = (n: number) => {
+    const clamped = clampPlayers(n);
+    setMaxPlayers(clamped);
+    setPlayerCountText(String(clamped));
+    if (reservedSlots >= clamped) setReservedSlots(clamped - 1);
+  };
 
   const classes = [
     { id: 'knight', name: 'Knight', desc: '75% duel advantage' },
@@ -104,19 +113,29 @@ export default function CreateGameScreen() {
 
       {/* Player Count */}
       <Text style={styles.label}>Player Count</Text>
-      <View style={styles.chipRow}>
-        {playerCounts.map((n) => (
-          <TouchableOpacity
-            key={n}
-            style={[styles.chip, maxPlayers === n && styles.chipActive]}
-            onPress={() => {
-              setMaxPlayers(n);
-              if (reservedSlots >= n) setReservedSlots(n - 1);
-            }}
-          >
-            <Text style={[styles.chipTxt, maxPlayers === n && styles.chipTxtActive]}>{n}</Text>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.stepperRow}>
+        <TouchableOpacity style={styles.stepperBtn} onPress={() => updateMaxPlayers(maxPlayers - 1)}>
+          <Text style={styles.stepperTxt}>-</Text>
+        </TouchableOpacity>
+        <TextInput
+          style={styles.stepperInput}
+          value={playerCountText}
+          onChangeText={setPlayerCountText}
+          onBlur={() => {
+            const parsed = parseInt(playerCountText, 10);
+            updateMaxPlayers(isNaN(parsed) ? 2 : parsed);
+          }}
+          onSubmitEditing={() => {
+            const parsed = parseInt(playerCountText, 10);
+            updateMaxPlayers(isNaN(parsed) ? 2 : parsed);
+          }}
+          keyboardType="number-pad"
+          returnKeyType="done"
+          maxLength={2}
+        />
+        <TouchableOpacity style={styles.stepperBtn} onPress={() => updateMaxPlayers(maxPlayers + 1)}>
+          <Text style={styles.stepperTxt}>+</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Reserved Slots */}
@@ -279,6 +298,16 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     minWidth: 40,
     textAlign: 'center',
+  },
+  stepperInput: {
+    color: COLORS.text,
+    fontSize: 22,
+    fontWeight: 'bold',
+    minWidth: 40,
+    textAlign: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.textSecondary,
+    paddingVertical: 4,
   },
   input: {
     backgroundColor: COLORS.surface,

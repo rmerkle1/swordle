@@ -31,6 +31,7 @@ export function makePlayer(overrides: Partial<GamePlayer> & { id: string }): Gam
     isStunned: overrides.isStunned ?? false,
     daysInStorm: overrides.daysInStorm ?? 0,
     stormRevealed: overrides.stormRevealed ?? false,
+    lastScoutDay: overrides.lastScoutDay ?? 0,
     ...overrides,
   };
 }

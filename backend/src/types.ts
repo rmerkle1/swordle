@@ -29,6 +29,7 @@ export interface GamePlayer {
   isStunned: boolean;
   daysInStorm: number;
   stormRevealed: boolean;
+  lastScoutDay: number;
 }
 
 export interface Move {
@@ -48,6 +49,8 @@ export interface GameEvent {
   playerName?: string;
   playerColor?: string;
   trapRevealTile?: number;
+  visibleToPlayerId?: string;
+  eventType?: string;
 }
 
 export interface Game {

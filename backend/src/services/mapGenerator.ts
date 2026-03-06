@@ -53,8 +53,8 @@ function isEdgeTile(idx: number, playable: Set<number>, gridW: number, gridH: nu
 
 export function generateMap(playerCount: number, seed: number): { tiles: MapTile[]; gridSize: number } {
   const rand = seededRandom(seed);
-  const targetPlayable = playerCount * playerCount;
-  const gridSize = Math.ceil(Math.sqrt(targetPlayable)) + 4;
+  const targetPlayable = 10 + Math.floor((playerCount - 2) / 2) * 5;
+  const gridSize = Math.ceil(Math.sqrt(targetPlayable)) + 2;
   const total = gridSize * gridSize;
   const cx = (gridSize - 1) / 2;
   const cy = (gridSize - 1) / 2;
@@ -98,7 +98,7 @@ export function generateMap(playerCount: number, seed: number): { tiles: MapTile
   }
 
   // 3) Place water tiles (N/2 total)
-  const waterCount = Math.floor(playerCount / 2);
+  const waterCount = Math.ceil(playerCount / 2);
   const waterTiles = new Set<number>();
   const interiorTiles = [...playable].filter((idx) => !isEdgeTile(idx, playable, gridSize, gridSize));
 

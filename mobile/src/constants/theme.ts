@@ -40,16 +40,16 @@ export const BUILD_EMOJI: Record<BuildOption, string> = {
 };
 
 export const BUILD_COSTS: Record<BuildOption, { wood: number; metal: number }> = {
-  wall: { wood: 2, metal: 1 },
-  trap: { wood: 1, metal: 2 },
-  upgrade: { wood: 3, metal: 1 },
+  wall: { wood: 1, metal: 0 },
+  trap: { wood: 0, metal: 1 },
+  upgrade: { wood: 1, metal: 1 },
 };
 
 export const BOARD_SIZE = 12;
 export const BOARD_PADDING = 8;
 
 export const UPGRADE_COSTS = [
-  { wood: 3, metal: 1 },
-  { wood: 5, metal: 3 },
-  { wood: 8, metal: 5 },
+  { wood: 1, metal: 1 },
+  { wood: 1, metal: 1 },
+  { wood: 1, metal: 1 },
 ];

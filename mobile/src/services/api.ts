@@ -174,4 +174,11 @@ export const api = {
       body: JSON.stringify({ signedTransaction }),
     });
   },
+
+  async sendChat(gameId: string, message: string): Promise<{ success: boolean }> {
+    return fetchJson<{ success: boolean }>(`${API_BASE}/games/${gameId}/chat`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
+  },
 };

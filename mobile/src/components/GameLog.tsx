@@ -14,19 +14,34 @@ export default function GameLog({ events }: Props) {
     <View style={styles.container}>
       <Text style={styles.header}>Game Log</Text>
       <ScrollView style={styles.list} nestedScrollEnabled>
-        {reversed.map((item) => (
-          <View key={item.id} style={styles.row}>
-            <View style={styles.dayBadge}>
-              <Text style={styles.dayText}>D{item.day}</Text>
+        {reversed.map((item) => {
+          const isChat = item.eventType === 'chat';
+
+          return (
+            <View key={item.id} style={[styles.row, isChat && styles.chatRow]}>
+              <View style={[styles.dayBadge, isChat && styles.chatBadge]}>
+                <Text style={[styles.dayText, isChat && styles.chatBadgeText]}>
+                  {isChat ? 'MSG' : `D${item.day}`}
+                </Text>
+              </View>
+              {isChat ? (
+                <Text style={styles.chatMessage}>
+                  {item.playerName ? (
+                    <Text style={{ color: item.playerColor, fontWeight: 'bold' }}>{item.playerName}: </Text>
+                  ) : null}
+                  {item.message}
+                </Text>
+              ) : (
+                <Text style={styles.message}>
+                  {item.playerName ? (
+                    <Text style={{ color: item.playerColor }}>{item.playerName} </Text>
+                  ) : null}
+                  {item.playerName ? item.message.replace(`${item.playerName} `, '') : item.message}
+                </Text>
+              )}
             </View>
-            <Text style={styles.message}>
-              {item.playerName ? (
-                <Text style={{ color: item.playerColor }}>{item.playerName} </Text>
-              ) : null}
-              {item.playerName ? item.message.replace(`${item.playerName} `, '') : item.message}
-            </Text>
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -52,6 +67,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
+  chatRow: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 6,
+    paddingVertical: 3,
+    paddingHorizontal: 4,
+  },
   dayBadge: {
     backgroundColor: COLORS.surfaceLight,
     paddingHorizontal: 6,
@@ -59,14 +80,26 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginRight: 8,
   },
+  chatBadge: {
+    backgroundColor: '#3a3a5c',
+  },
   dayText: {
     color: COLORS.gold,
     fontSize: 11,
     fontWeight: 'bold',
   },
+  chatBadgeText: {
+    color: '#a0a0ff',
+  },
   message: {
     color: COLORS.textSecondary,
     fontSize: 12,
     flex: 1,
+  },
+  chatMessage: {
+    color: COLORS.text,
+    fontSize: 12,
+    flex: 1,
+    fontStyle: 'italic',
   },
 });
