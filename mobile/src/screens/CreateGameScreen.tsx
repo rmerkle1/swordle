@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, Image, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -7,7 +7,7 @@ import { COLORS } from '../constants/theme';
 import { usePlayerStore } from '../store/playerStore';
 import { api } from '../services/api';
 import { FIGHTER_IMAGES } from '../assets';
-import { FighterClass } from '../types';
+import { FighterClass, FighterColor, OwnedFighter } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signTransaction } from '../utils/wallet';
 
@@ -21,9 +21,49 @@ export default function CreateGameScreen() {
   const [reservedSlots, setReservedSlots] = useState(0);
   const [passcode, setPasscode] = useState('');
   const [fighterClass, setFighterClass] = useState('knight');
+  const [fighterColor, setFighterColor] = useState<string | undefined>(undefined);
   const [mapTheme, setMapTheme] = useState('default');
   const [deadlineHour, setDeadlineHour] = useState(0);
   const [creating, setCreating] = useState(false);
+  const [ownedFighters, setOwnedFighters] = useState<OwnedFighter[]>([]);
+  const [mintableClasses, setMintableClasses] = useState<FighterClass[]>([]);
+  const [playerWins, setPlayerWins] = useState(0);
+  const [loadingAvailability, setLoadingAvailability] = useState(true);
+  const [mintingClass, setMintingClass] = useState<string | null>(null);
+
+  const UNLOCK_THRESHOLDS: Record<FighterClass, number> = {
+    knight: 0, archer: 1, mage: 5, cavalry: 10,
+  };
+
+  useEffect(() => {
+    setLoadingAvailability(true);
+    api.getOwnedFighters().then((result) => {
+      setOwnedFighters(result.owned);
+      setMintableClasses(result.mintable);
+      setPlayerWins(result.wins);
+      // Auto-select knight color if exactly one
+      const knightColors = result.owned.filter((f) => f.fighterClass === 'knight' && f.color);
+      if (knightColors.length === 1) {
+        setFighterColor(knightColors[0].color);
+      }
+    }).catch(() => {
+      setOwnedFighters([{ fighterClass: 'knight' }, { fighterClass: 'archer' }, { fighterClass: 'cavalry' }, { fighterClass: 'mage' }]);
+    }).finally(() => setLoadingAvailability(false));
+  }, []);
+
+  const handleMintClass = async (cls: FighterClass) => {
+    setMintingClass(cls);
+    try {
+      await api.mintFighter(cls);
+      const result = await api.getOwnedFighters();
+      setOwnedFighters(result.owned);
+      setMintableClasses(result.mintable);
+      setPlayerWins(result.wins);
+    } catch (err: any) {
+      Alert.alert('Mint Failed', err.message || 'Could not mint fighter');
+    }
+    setMintingClass(null);
+  };
 
   const skrCost = 100; // Custom game creation always costs 100 $SKR
 
@@ -68,6 +108,7 @@ export default function CreateGameScreen() {
         maxPlayers,
         moveDeadlineHour: deadlineHour,
         fighterClass,
+        fighterColor: fighterClass === 'knight' ? fighterColor : undefined,
         passcode: reservedSlots > 0 ? passcode.trim() : undefined,
         reservedSlots: reservedSlots > 0 ? reservedSlots : undefined,
         mapTheme,
@@ -101,10 +142,10 @@ export default function CreateGameScreen() {
   };
 
   const classes = [
-    { id: 'knight', name: 'Knight', desc: '75% duel advantage' },
-    { id: 'archer', name: 'Archer', desc: 'Ranged single-tile attack' },
-    { id: 'cavalry', name: 'Cavalry', desc: 'Move 2 tiles per turn' },
-    { id: 'mage', name: 'Mage', desc: 'Area-of-effect attack' },
+    { id: 'knight' as FighterClass, name: 'Knight', desc: '75% duel advantage' },
+    { id: 'archer' as FighterClass, name: 'Archer', desc: 'Ranged single-tile attack' },
+    { id: 'mage' as FighterClass, name: 'Mage', desc: 'Area-of-effect attack' },
+    { id: 'cavalry' as FighterClass, name: 'Cavalry', desc: 'Move 2 tiles per turn' },
   ];
 
   return (
@@ -167,21 +208,87 @@ export default function CreateGameScreen() {
 
       {/* Fighter Class */}
       <Text style={styles.label}>Your Class</Text>
-      {classes.map((c) => (
-        <TouchableOpacity
-          key={c.id}
-          style={[styles.classBtn, fighterClass === c.id && styles.classBtnActive]}
-          onPress={() => setFighterClass(c.id)}
-        >
-          <View style={styles.classBtnRow}>
-            <Image source={FIGHTER_IMAGES[c.id as FighterClass].red} style={styles.classBtnImg} />
-            <View style={styles.classBtnText}>
-              <Text style={styles.classBtnTitle}>{c.name}</Text>
-              <Text style={styles.classBtnDesc}>{c.desc}</Text>
-            </View>
+      {loadingAvailability ? (
+        <ActivityIndicator color={COLORS.accent} style={{ marginVertical: 12 }} />
+      ) : (
+        classes.map((c) => {
+          const isOwned = ownedFighters.some((f) => f.fighterClass === c.id);
+          const isMintable = mintableClasses.includes(c.id);
+          const isLocked = !isOwned && !isMintable;
+          const threshold = UNLOCK_THRESHOLDS[c.id];
+
+          return (
+            <TouchableOpacity
+              key={c.id}
+              style={[
+                styles.classBtn,
+                fighterClass === c.id && isOwned && styles.classBtnActive,
+                isLocked && styles.classBtnLocked,
+              ]}
+              onPress={() => {
+                if (isLocked) return;
+                if (isOwned) {
+                  setFighterClass(c.id);
+                  if (c.id !== 'knight') setFighterColor(undefined);
+                }
+              }}
+              disabled={isLocked && !isMintable}
+            >
+              <View style={styles.classBtnRow}>
+                <Image
+                  source={FIGHTER_IMAGES[c.id].red}
+                  style={[styles.classBtnImg, isLocked && { opacity: 0.4 }]}
+                />
+                <View style={styles.classBtnText}>
+                  <Text style={[styles.classBtnTitle, isLocked && { opacity: 0.4 }]}>{c.name}</Text>
+                  <Text style={[styles.classBtnDesc, isLocked && { opacity: 0.4 }]}>
+                    {isLocked ? `${threshold} wins to unlock` : c.desc}
+                  </Text>
+                </View>
+                {isMintable && !isOwned && (
+                  <TouchableOpacity
+                    style={styles.mintBtn}
+                    onPress={() => handleMintClass(c.id)}
+                    disabled={mintingClass === c.id}
+                  >
+                    {mintingClass === c.id ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.mintBtnTxt}>Mint</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })
+      )}
+
+      {/* Knight Color Picker */}
+      {fighterClass === 'knight' && ownedFighters.filter((f) => f.fighterClass === 'knight' && f.color).length > 1 && (
+        <>
+          <Text style={styles.label}>Knight Color</Text>
+          <View style={styles.colorRow}>
+            {(['red', 'blue', 'yellow', 'purple', 'green'] as FighterColor[]).map((color) => {
+              const ownsColor = ownedFighters.some((f) => f.fighterClass === 'knight' && f.color === color);
+              return (
+                <TouchableOpacity
+                  key={color}
+                  style={[
+                    styles.colorSwatch,
+                    { opacity: ownsColor ? 1 : 0.3 },
+                    fighterColor === color && styles.colorSwatchActive,
+                  ]}
+                  onPress={() => ownsColor && setFighterColor(color)}
+                  disabled={!ownsColor}
+                >
+                  <Image source={FIGHTER_IMAGES.knight[color]} style={styles.colorSwatchImg} />
+                </TouchableOpacity>
+              );
+            })}
           </View>
-        </TouchableOpacity>
-      ))}
+        </>
+      )}
 
       {/* Map Theme */}
       <Text style={styles.label}>Map Theme</Text>
@@ -389,5 +496,40 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  classBtnLocked: {
+    borderColor: COLORS.textSecondary + '33',
+    backgroundColor: 'transparent',
+  },
+  mintBtn: {
+    backgroundColor: COLORS.accent,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  mintBtnTxt: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  colorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 8,
+  },
+  colorSwatch: {
+    alignItems: 'center',
+  },
+  colorSwatchImg: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+  },
+  colorSwatchActive: {
+    borderWidth: 2,
+    borderColor: COLORS.accent,
+    borderRadius: 10,
   },
 });

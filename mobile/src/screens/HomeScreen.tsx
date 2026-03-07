@@ -1,9 +1,9 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, Image, SectionList, TouchableOpacity, StyleSheet, Alert, RefreshControl, Modal } from 'react-native';
+import { View, Text, Image, SectionList, TouchableOpacity, StyleSheet, Alert, RefreshControl, Modal, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList, Game } from '../types';
+import { RootStackParamList, Game, FighterClass, FighterColor, OwnedFighter } from '../types';
 import { COLORS } from '../constants/theme';
 import { useGameStore } from '../store/gameStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -23,6 +23,12 @@ export default function ExploreScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showClassPicker, setShowClassPicker] = useState(false);
   const [pendingJoinGameId, setPendingJoinGameId] = useState<string | null>(null);
+  const [ownedFighters, setOwnedFighters] = useState<OwnedFighter[]>([]);
+  const [mintableClasses, setMintableClasses] = useState<FighterClass[]>([]);
+  const [playerWins, setPlayerWins] = useState(0);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [mintingClass, setMintingClass] = useState<string | null>(null);
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   const refreshGames = useCallback(() => {
     api.getGames().then(setGames).catch(() => {});
@@ -50,16 +56,49 @@ export default function ExploreScreen() {
     }, [])
   );
 
+  const UNLOCK_THRESHOLDS: Record<FighterClass, number> = {
+    knight: 0, archer: 1, mage: 5, cavalry: 10,
+  };
+
   const handleJoinGame = async (gameId: string) => {
     if (!playerId) return;
     setPendingJoinGameId(gameId);
+    setLoadingAvailability(true);
     setShowClassPicker(true);
+    try {
+      const result = await api.getOwnedFighters();
+      setOwnedFighters(result.owned);
+      setMintableClasses(result.mintable);
+      setPlayerWins(result.wins);
+    } catch {
+      // Fallback: assume all owned
+      setOwnedFighters([{ fighterClass: 'knight' }, { fighterClass: 'archer' }, { fighterClass: 'cavalry' }, { fighterClass: 'mage' }]);
+      setMintableClasses([]);
+      setPlayerWins(0);
+    }
+    setLoadingAvailability(false);
   };
 
-  const confirmJoinWithClass = async (fighterClass: string) => {
+  const handleMintClass = async (cls: FighterClass) => {
+    setMintingClass(cls);
+    try {
+      await api.mintFighter(cls);
+      // Refresh availability
+      const result = await api.getOwnedFighters();
+      setOwnedFighters(result.owned);
+      setMintableClasses(result.mintable);
+      setPlayerWins(result.wins);
+    } catch (err: any) {
+      Alert.alert('Mint Failed', err.message || 'Could not mint fighter');
+    }
+    setMintingClass(null);
+  };
+
+  const confirmJoinWithClass = async (fighterClass: string, fighterColor?: string) => {
     if (!playerId || !pendingJoinGameId) return;
     setShowClassPicker(false);
-    console.log('[JoinGame] Joining game', pendingJoinGameId, 'as', fighterClass);
+    setShowColorPicker(false);
+    console.log('[JoinGame] Joining game', pendingJoinGameId, 'as', fighterClass, fighterColor ? `(${fighterColor})` : '');
     try {
       // Step 1: Check if $SKR fee is required
       console.log('[JoinGame] Checking $SKR fee...');
@@ -89,7 +128,7 @@ export default function ExploreScreen() {
 
       // Step 4: Join the game
       console.log('[JoinGame] Calling joinGame API...');
-      const result = await api.joinGame(pendingJoinGameId, playerId, fighterClass);
+      const result = await api.joinGame(pendingJoinGameId, playerId, fighterClass, undefined, fighterColor);
       console.log('[JoinGame] Joined! Game status:', result.game.status);
       if (result.coinsRemaining !== undefined) {
         usePlayerStore.setState({ coins: result.coinsRemaining });
@@ -159,51 +198,106 @@ export default function ExploreScreen() {
       <Modal visible={showClassPicker} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Choose Class</Text>
+            <Text style={styles.modalTitle}>{showColorPicker ? 'Choose Color' : 'Choose Class'}</Text>
 
-            <TouchableOpacity style={[styles.classBtn, styles.classBtnActive]} onPress={() => confirmJoinWithClass('knight')}>
-              <View style={styles.classBtnRow}>
-                <Image source={FIGHTER_IMAGES.knight.red} style={styles.classBtnImg} />
-                <View style={styles.classBtnText}>
-                  <Text style={styles.classBtnTitle}>Knight</Text>
-                  <Text style={styles.classBtnDesc}>Melee fighter with 75% duel advantage</Text>
+            {loadingAvailability ? (
+              <ActivityIndicator color={COLORS.accent} style={{ marginVertical: 20 }} />
+            ) : showColorPicker ? (
+              <>
+                {/* Knight color swatches */}
+                <View style={styles.colorRow}>
+                  {(['red', 'blue', 'yellow', 'purple', 'green'] as FighterColor[]).map((color) => {
+                    const ownsColor = ownedFighters.some((f) => f.fighterClass === 'knight' && f.color === color);
+                    return (
+                      <TouchableOpacity
+                        key={color}
+                        style={[styles.colorSwatch, { opacity: ownsColor ? 1 : 0.3 }]}
+                        onPress={() => ownsColor && confirmJoinWithClass('knight', color)}
+                        disabled={!ownsColor}
+                      >
+                        <Image source={FIGHTER_IMAGES.knight[color]} style={styles.colorSwatchImg} />
+                        <Text style={styles.colorSwatchLabel}>{color}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
-              </View>
-            </TouchableOpacity>
+                <TouchableOpacity style={styles.modalCancel} onPress={() => setShowColorPicker(false)}>
+                  <Text style={styles.modalCancelTxt}>Back</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                {([
+                  { id: 'knight' as FighterClass, name: 'Knight', desc: 'Melee fighter with 75% duel advantage' },
+                  { id: 'archer' as FighterClass, name: 'Archer', desc: 'Ranged attacker targeting adjacent tiles' },
+                  { id: 'mage' as FighterClass, name: 'Mage', desc: 'Area-of-effect ranged attack' },
+                  { id: 'cavalry' as FighterClass, name: 'Cavalry', desc: 'Can move 2 tiles per turn' },
+                ]).map((c) => {
+                  const isOwned = ownedFighters.some((f) => f.fighterClass === c.id);
+                  const isMintable = mintableClasses.includes(c.id);
+                  const isLocked = !isOwned && !isMintable;
+                  const threshold = UNLOCK_THRESHOLDS[c.id];
 
-            <TouchableOpacity style={[styles.classBtn, styles.classBtnActive]} onPress={() => confirmJoinWithClass('archer')}>
-              <View style={styles.classBtnRow}>
-                <Image source={FIGHTER_IMAGES.archer.red} style={styles.classBtnImg} />
-                <View style={styles.classBtnText}>
-                  <Text style={styles.classBtnTitle}>Archer</Text>
-                  <Text style={styles.classBtnDesc}>Ranged attacker targeting adjacent tiles</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
+                  const handleClassPress = () => {
+                    if (isLocked) return;
+                    if (c.id === 'knight') {
+                      const knightColors = ownedFighters.filter((f) => f.fighterClass === 'knight' && f.color);
+                      if (knightColors.length === 1) {
+                        confirmJoinWithClass('knight', knightColors[0].color);
+                      } else if (knightColors.length > 1) {
+                        setShowColorPicker(true);
+                      } else {
+                        confirmJoinWithClass('knight');
+                      }
+                    } else {
+                      confirmJoinWithClass(c.id);
+                    }
+                  };
 
-            <TouchableOpacity style={[styles.classBtn, styles.classBtnActive]} onPress={() => confirmJoinWithClass('cavalry')}>
-              <View style={styles.classBtnRow}>
-                <Image source={FIGHTER_IMAGES.cavalry.red} style={styles.classBtnImg} />
-                <View style={styles.classBtnText}>
-                  <Text style={styles.classBtnTitle}>Cavalry</Text>
-                  <Text style={styles.classBtnDesc}>Can move 2 tiles per turn</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.classBtn, styles.classBtnActive]} onPress={() => confirmJoinWithClass('mage')}>
-              <View style={styles.classBtnRow}>
-                <Image source={FIGHTER_IMAGES.mage.red} style={styles.classBtnImg} />
-                <View style={styles.classBtnText}>
-                  <Text style={styles.classBtnTitle}>Mage</Text>
-                  <Text style={styles.classBtnDesc}>Area-of-effect ranged attack</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.modalCancel} onPress={() => { setShowClassPicker(false); setPendingJoinGameId(null); }}>
-              <Text style={styles.modalCancelTxt}>Cancel</Text>
-            </TouchableOpacity>
+                  return (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={[
+                        styles.classBtn,
+                        isOwned && styles.classBtnActive,
+                        isLocked && styles.classBtnLocked,
+                      ]}
+                      onPress={handleClassPress}
+                      disabled={isLocked && !isMintable}
+                    >
+                      <View style={styles.classBtnRow}>
+                        <Image
+                          source={FIGHTER_IMAGES[c.id].red}
+                          style={[styles.classBtnImg, isLocked && { opacity: 0.4 }]}
+                        />
+                        <View style={styles.classBtnText}>
+                          <Text style={[styles.classBtnTitle, isLocked && { opacity: 0.4 }]}>{c.name}</Text>
+                          <Text style={[styles.classBtnDesc, isLocked && { opacity: 0.4 }]}>
+                            {isLocked ? `${threshold} wins to unlock` : c.desc}
+                          </Text>
+                        </View>
+                        {isMintable && !isOwned && (
+                          <TouchableOpacity
+                            style={styles.mintBtn}
+                            onPress={() => handleMintClass(c.id)}
+                            disabled={mintingClass === c.id}
+                          >
+                            {mintingClass === c.id ? (
+                              <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                              <Text style={styles.mintBtnTxt}>Mint</Text>
+                            )}
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+                <TouchableOpacity style={styles.modalCancel} onPress={() => { setShowClassPicker(false); setPendingJoinGameId(null); }}>
+                  <Text style={styles.modalCancelTxt}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -336,5 +430,43 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontSize: 12,
     marginTop: 2,
+  },
+  classBtnLocked: {
+    borderColor: COLORS.textSecondary + '33',
+    backgroundColor: 'transparent',
+  },
+  mintBtn: {
+    backgroundColor: COLORS.accent,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  mintBtnTxt: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  colorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 12,
+    marginVertical: 12,
+  },
+  colorSwatch: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  colorSwatchImg: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+  },
+  colorSwatchLabel: {
+    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'capitalize',
   },
 });

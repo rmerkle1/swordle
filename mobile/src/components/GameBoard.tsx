@@ -13,6 +13,7 @@ interface Props {
   validTargets: Set<number>;
   attackTargetTiles?: Set<number>;
   myPlayerTile?: number | null;
+  tombstoneTile?: number | null;
   onTilePress: (tileIndex: number) => void;
   maxHeight?: number;
 }
@@ -20,7 +21,7 @@ interface Props {
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 2.5;
 
-export default function GameBoard({ foggedTiles, boardSize, selectedTile, lockedTile, validTargets, attackTargetTiles, myPlayerTile, onTilePress, maxHeight }: Props) {
+export default function GameBoard({ foggedTiles, boardSize, selectedTile, lockedTile, validTargets, attackTargetTiles, myPlayerTile, tombstoneTile, onTilePress, maxHeight }: Props) {
   const { width, height } = useWindowDimensions();
   const [zoom, setZoom] = useState(1.5);
   const zoomBase = useRef(1);
@@ -111,6 +112,7 @@ export default function GameBoard({ foggedTiles, boardSize, selectedTile, locked
                     isValidTarget={validTargets.has(ft.index)}
                     isAttackTarget={attackTargetTiles?.has(ft.index) ?? false}
                     isMyTile={myPlayerTile === ft.index}
+                    isTombstone={tombstoneTile === ft.index}
                     onPress={onTilePress}
                   />
                 ))}

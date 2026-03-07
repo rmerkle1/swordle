@@ -1,10 +1,20 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { getOwnedFighters, mintFighterNFT, createFighterCollections } from '../services/nftService';
+import { query } from '../config/database';
 
 const router = Router();
 
-// GET / — list fighter classes the authenticated player owns NFTs for
+type FighterClass = 'knight' | 'archer' | 'cavalry' | 'mage';
+
+const UNLOCK_THRESHOLDS: Record<FighterClass, number> = {
+  knight: 0,
+  archer: 1,
+  mage: 5,
+  cavalry: 10,
+};
+
+// GET / — list owned fighters, mintable classes, and win count
 router.get('/', requireAuth, async (req: Request, res: Response) => {
   try {
     if (!req.playerPubkey) {
@@ -12,15 +22,32 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const fighters = await getOwnedFighters(req.playerPubkey);
-    res.json({ fighters });
+    const owned = await getOwnedFighters(req.playerPubkey);
+
+    // Get player wins
+    const statsRes = await query(
+      'SELECT wins FROM player_stats WHERE player_id = $1',
+      [req.playerId]
+    );
+    const wins = statsRes.rows.length > 0 ? statsRes.rows[0].wins : 0;
+
+    // Compute mintable classes: wins >= threshold and not already owned
+    const ownedClasses = new Set(owned.map((f) => f.fighterClass));
+    const mintable: FighterClass[] = [];
+    for (const [cls, threshold] of Object.entries(UNLOCK_THRESHOLDS) as [FighterClass, number][]) {
+      if (wins >= threshold && !ownedClasses.has(cls)) {
+        mintable.push(cls);
+      }
+    }
+
+    res.json({ owned, mintable, wins });
   } catch (err: any) {
     console.error('Fighters route error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// POST /mint — mint a new fighter NFT (admin or unlock-based)
+// POST /mint — mint a new fighter NFT (unlock-based with wins validation)
 router.post('/mint', requireAuth, async (req: Request, res: Response) => {
   try {
     if (!req.playerPubkey) {
@@ -28,15 +55,35 @@ router.post('/mint', requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const { fighterClass } = req.body;
+    const { fighterClass, color } = req.body;
     const validClasses = ['knight', 'archer', 'cavalry', 'mage'];
     if (!fighterClass || !validClasses.includes(fighterClass)) {
       res.status(400).json({ error: 'Valid fighterClass is required (knight, archer, cavalry, mage)' });
       return;
     }
 
-    const mintAddress = await mintFighterNFT(req.playerPubkey, fighterClass);
-    res.json({ success: true, mintAddress, fighterClass });
+    // Check wins requirement
+    const statsRes = await query(
+      'SELECT wins FROM player_stats WHERE player_id = $1',
+      [req.playerId]
+    );
+    const wins = statsRes.rows.length > 0 ? statsRes.rows[0].wins : 0;
+    const threshold = UNLOCK_THRESHOLDS[fighterClass as FighterClass];
+    if (wins < threshold) {
+      res.status(403).json({
+        error: `Need ${threshold} wins to unlock ${fighterClass} (you have ${wins})`,
+      });
+      return;
+    }
+
+    // For knights, accept optional color (random if not specified)
+    const validColors = ['red', 'blue', 'yellow', 'purple', 'green'];
+    const knightColor = fighterClass === 'knight'
+      ? (color && validColors.includes(color) ? color : validColors[Math.floor(Math.random() * validColors.length)])
+      : undefined;
+
+    const mintAddress = await mintFighterNFT(req.playerPubkey, fighterClass, undefined, knightColor);
+    res.json({ success: true, mintAddress, fighterClass, color: knightColor });
   } catch (err: any) {
     console.error('Mint fighter error:', err.message);
     res.status(500).json({ error: err.message || 'Failed to mint fighter NFT' });

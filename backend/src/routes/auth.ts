@@ -107,11 +107,13 @@ router.post('/verify', async (req: Request, res: Response) => {
       [player.id]
     );
 
-    // Mint free starter knight NFT for new players
+    // Mint free starter knight NFT for new players (random color)
     if (isNewPlayer && process.env.KNIGHT_COLLECTION_MINT) {
       try {
-        await mintFighterNFT(pubkey, 'knight', player.username);
-        console.log(`Minted starter knight NFT for new player ${pubkey}`);
+        const starterColors = ['red', 'blue', 'yellow', 'purple', 'green'] as const;
+        const randomColor = starterColors[Math.floor(Math.random() * starterColors.length)];
+        await mintFighterNFT(pubkey, 'knight', player.username, randomColor);
+        console.log(`Minted starter ${randomColor} knight NFT for new player ${pubkey}`);
       } catch (nftErr: any) {
         console.error(`Failed to mint starter NFT for ${pubkey}:`, nftErr.message);
         // Don't block registration if NFT mint fails

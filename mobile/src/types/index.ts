@@ -136,3 +136,14 @@ export interface ClassStats {
   wins: number;
   losses: number;
 }
+
+export interface OwnedFighter {
+  fighterClass: FighterClass;
+  color?: FighterColor;
+}
+
+export interface FighterAvailability {
+  owned: OwnedFighter[];
+  mintable: FighterClass[];
+  wins: number;
+}

@@ -23,10 +23,11 @@ interface Props {
   isValidTarget: boolean;
   isAttackTarget?: boolean;
   isMyTile?: boolean;
+  isTombstone?: boolean;
   onPress: (tileIndex: number) => void;
 }
 
-export default function TileCell({ foggedTile, size, isSelected, isLocked, isValidTarget, isAttackTarget = false, isMyTile = false, onPress }: Props) {
+export default function TileCell({ foggedTile, size, isSelected, isLocked, isValidTarget, isAttackTarget = false, isMyTile = false, isTombstone = false, onPress }: Props) {
   const { visibility, displayType, displayEmoji, displayPlayer } = foggedTile;
 
   // Hidden tiles render as void
@@ -110,6 +111,15 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
       {isAttackTarget && (
         <View style={styles.attackTargetOverlay} pointerEvents="none" />
       )}
+
+      {/* Tombstone marker */}
+      {isTombstone && (
+        <View style={styles.tombstoneOverlay} pointerEvents="none">
+          <View style={styles.tombstoneMarker}>
+            <Text style={styles.tombstoneText}>{'RIP'}</Text>
+          </View>
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -187,5 +197,25 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(237,213,85,0.25)',
     borderWidth: 2,
     borderColor: 'rgba(237,213,85,0.4)',
+  },
+  tombstoneOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tombstoneMarker: {
+    width: 28,
+    height: 28,
+    borderRadius: 4,
+    backgroundColor: 'rgba(30,30,30,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  tombstoneText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 9,
+    fontWeight: 'bold',
   },
 });

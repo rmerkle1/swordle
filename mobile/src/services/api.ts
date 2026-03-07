@@ -1,4 +1,4 @@
-import { Game, Move, PlayerStats, ClassStats, FighterClass } from '../types';
+import { Game, Move, PlayerStats, ClassStats, FighterClass, FighterAvailability } from '../types';
 import { API_BASE } from '../config';
 
 // Module-level auth token
@@ -53,14 +53,21 @@ export const api = {
 
   // --- Fighter NFT endpoints ---
 
-  async getOwnedFighters(): Promise<{ fighters: FighterClass[] }> {
-    return fetchJson<{ fighters: FighterClass[] }>(`${API_BASE}/fighters`);
+  async getOwnedFighters(): Promise<FighterAvailability> {
+    return fetchJson<FighterAvailability>(`${API_BASE}/fighters`);
   },
 
   async mintStarterFighter(playerName?: string): Promise<{ success: boolean; mintAddress: string }> {
     return fetchJson(`${API_BASE}/fighters/mint-starter`, {
       method: 'POST',
       body: JSON.stringify({ playerName }),
+    });
+  },
+
+  async mintFighter(fighterClass: string, color?: string): Promise<{ success: boolean; mintAddress: string; fighterClass: string; color?: string }> {
+    return fetchJson(`${API_BASE}/fighters/mint`, {
+      method: 'POST',
+      body: JSON.stringify({ fighterClass, color }),
     });
   },
 
@@ -115,6 +122,7 @@ export const api = {
     creatorId?: string;
     moveDeadlineHour?: number;
     fighterClass?: string;
+    fighterColor?: string;
     passcode?: string;
     reservedSlots?: number;
     mapTheme?: string;
@@ -125,10 +133,10 @@ export const api = {
     });
   },
 
-  async joinGame(gameId: string, playerId?: string, fighterClass?: string, passcode?: string): Promise<{ success: boolean; game: Game; coinCost: number; coinsRemaining: number }> {
+  async joinGame(gameId: string, playerId?: string, fighterClass?: string, passcode?: string, fighterColor?: string): Promise<{ success: boolean; game: Game; coinCost: number; coinsRemaining: number }> {
     return fetchJson<{ success: boolean; game: Game; coinCost: number; coinsRemaining: number }>(`${API_BASE}/games/${gameId}/join`, {
       method: 'POST',
-      body: JSON.stringify({ playerId, fighterClass, passcode }),
+      body: JSON.stringify({ playerId, fighterClass, passcode, fighterColor }),
     });
   },
 

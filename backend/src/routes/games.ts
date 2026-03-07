@@ -7,7 +7,7 @@ import { Game } from '../types';
 import { emitGameUpdate, emitGamesList } from '../socket';
 import { requireAuth } from '../middleware/auth';
 import { getSKRBalance, buildEntryFeeTransfer, submitAndConfirmTx } from '../services/solana';
-import { verifyFighterOwnership } from '../services/nftService';
+import { verifyFighterOwnership, getOwnedFighters } from '../services/nftService';
 
 const router = Router();
 
@@ -140,7 +140,7 @@ router.post('/create-fee-tx', requireAuth, async (req: Request, res: Response) =
 // POST / — create game
 router.post('/', requireAuth, async (req: Request, res: Response) => {
   try {
-    const { maxPlayers = 4, moveDeadlineHour, fighterClass: rawClass, passcode, reservedSlots = 0, mapTheme = 'default' } = req.body;
+    const { maxPlayers = 4, moveDeadlineHour, fighterClass: rawClass, fighterColor, passcode, reservedSlots = 0, mapTheme = 'default' } = req.body;
     const creatorId = req.playerId!;
 
     if (!Number.isInteger(maxPlayers) || maxPlayers < 2 || maxPlayers > 16) {
@@ -167,12 +167,25 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     }
     const player = playerRes.rows[0];
 
-    // Verify fighter NFT ownership
+    // Verify fighter NFT ownership (and knight color if applicable)
+    let playerColor = FIGHTER_COLORS[Math.floor(Math.random() * FIGHTER_COLORS.length)];
     if (req.playerPubkey) {
       const ownsFighter = await verifyFighterOwnership(req.playerPubkey, fighterClass);
       if (!ownsFighter) {
         res.status(403).json({ error: `You do not own a ${fighterClass} NFT` });
         return;
+      }
+      // For knights, validate color ownership
+      if (fighterClass === 'knight' && fighterColor && FIGHTER_COLORS.includes(fighterColor)) {
+        const ownedFighters = await getOwnedFighters(req.playerPubkey);
+        const ownsColor = ownedFighters.some(
+          (f) => f.fighterClass === 'knight' && f.color === fighterColor
+        );
+        if (ownsColor) {
+          playerColor = fighterColor;
+        }
+      } else if (fighterClass === 'knight' && fighterColor) {
+        // Invalid color, keep random
       }
     }
 
@@ -250,7 +263,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       await client.query(
         `INSERT INTO game_players (game_id, player_id, player_pubkey, display_name, color, fighter_class, weapon_tier, starting_position, current_position)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [gameId, player.id, player.pubkey, player.username, FIGHTER_COLORS[Math.floor(Math.random() * FIGHTER_COLORS.length)], fighterClass, weaponTier, spawnPosition, spawnPosition]
+        [gameId, player.id, player.pubkey, player.username, playerColor, fighterClass, weaponTier, spawnPosition, spawnPosition]
       );
 
       await client.query('COMMIT');
@@ -280,7 +293,7 @@ router.post('/:id/join', requireAuth, async (req: Request, res: Response) => {
     }
 
     const playerId = req.playerId!;
-    const { fighterClass: rawClass, passcode: joinPasscode } = req.body;
+    const { fighterClass: rawClass, fighterColor: joinFighterColor, passcode: joinPasscode } = req.body;
 
     // Validate fighter class
     const validClasses = ['knight', 'archer', 'cavalry', 'mage'];
@@ -329,12 +342,23 @@ router.post('/:id/join', requireAuth, async (req: Request, res: Response) => {
     }
     const player = playerRes.rows[0];
 
-    // Verify fighter NFT ownership
+    // Verify fighter NFT ownership (and knight color if applicable)
+    let joinColor = FIGHTER_COLORS[Math.floor(Math.random() * FIGHTER_COLORS.length)];
     if (req.playerPubkey) {
       const ownsFighter = await verifyFighterOwnership(req.playerPubkey, fighterClass);
       if (!ownsFighter) {
         res.status(403).json({ error: `You do not own a ${fighterClass} NFT` });
         return;
+      }
+      // For knights, validate color ownership
+      if (fighterClass === 'knight' && joinFighterColor && FIGHTER_COLORS.includes(joinFighterColor)) {
+        const ownedFighters = await getOwnedFighters(req.playerPubkey);
+        const ownsColor = ownedFighters.some(
+          (f) => f.fighterClass === 'knight' && f.color === joinFighterColor
+        );
+        if (ownsColor) {
+          joinColor = joinFighterColor;
+        }
       }
     }
 
@@ -371,8 +395,7 @@ router.post('/:id/join', requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    // Random color assignment
-    const color = FIGHTER_COLORS[Math.floor(Math.random() * FIGHTER_COLORS.length)];
+    const color = joinColor;
 
     const isDefault = gameRow.is_default === true;
 

@@ -14,6 +14,12 @@ import {
 import { getConnection, getAuthorityKeypair } from './solana';
 
 type FighterClass = 'knight' | 'archer' | 'cavalry' | 'mage';
+type FighterColor = 'red' | 'blue' | 'yellow' | 'purple' | 'green';
+
+export interface OwnedFighter {
+  fighterClass: FighterClass;
+  color?: FighterColor;
+}
 
 const COLLECTION_ENV_KEYS: Record<FighterClass, string> = {
   knight: 'KNIGHT_COLLECTION_MINT',
@@ -94,7 +100,8 @@ export async function createFighterCollections(): Promise<Record<FighterClass, s
 export async function mintFighterNFT(
   playerPubkey: string,
   fighterClass: FighterClass,
-  playerName?: string
+  playerName?: string,
+  color?: FighterColor
 ): Promise<string> {
   const umi = getUmi();
   const collectionMintStr = getCollectionMint(fighterClass);
@@ -105,17 +112,29 @@ export async function mintFighterNFT(
   const metadataBaseUrl = process.env.NFT_METADATA_BASE_URL || 'https://swordle.app/metadata';
   const displayName = playerName || playerPubkey.slice(0, 8);
 
+  // Knights encode color in URI and name; other classes use generic URI
+  let nftName: string;
+  let nftUri: string;
+  if (fighterClass === 'knight' && color) {
+    const colorCapitalized = color.charAt(0).toUpperCase() + color.slice(1);
+    nftName = `${displayName}'s ${colorCapitalized} Knight`;
+    nftUri = `${metadataBaseUrl}/knight-${color}.json`;
+  } else {
+    nftName = `${displayName}'s ${fighterClass.charAt(0).toUpperCase() + fighterClass.slice(1)}`;
+    nftUri = `${metadataBaseUrl}/${fighterClass}.json`;
+  }
+
   const mint = generateSigner(umi);
   await createNft(umi, {
     mint,
-    name: `${displayName}'s ${fighterClass.charAt(0).toUpperCase() + fighterClass.slice(1)}`,
-    uri: `${metadataBaseUrl}/${fighterClass}.json`,
+    name: nftName,
+    uri: nftUri,
     sellerFeeBasisPoints: { basisPoints: 0n, identifier: '%', decimals: 2 },
     collection: { verified: false, key: umiPublicKey(collectionMintStr) },
     tokenOwner: umiPublicKey(playerPubkey),
   }).sendAndConfirm(umi);
 
-  console.log(`Minted ${fighterClass} NFT for ${playerPubkey}: ${mint.publicKey.toString()}`);
+  console.log(`Minted ${fighterClass}${color ? `-${color}` : ''} NFT for ${playerPubkey}: ${mint.publicKey.toString()}`);
   return mint.publicKey.toString();
 }
 
@@ -152,24 +171,62 @@ export async function verifyFighterOwnership(
 }
 
 /**
- * Get all fighter classes the player owns NFTs for.
+ * Get all fighter NFTs the player owns, with color info for knights.
  */
-export async function getOwnedFighters(playerPubkey: string): Promise<FighterClass[]> {
-  const owned: FighterClass[] = [];
+export async function getOwnedFighters(playerPubkey: string): Promise<OwnedFighter[]> {
+  const knightCollectionMint = getCollectionMint('knight');
 
-  for (const fighterClass of ['knight', 'archer', 'cavalry', 'mage'] as FighterClass[]) {
-    const collectionMintStr = getCollectionMint(fighterClass);
-    if (!collectionMintStr) {
-      // Not configured — assume player owns it
-      owned.push(fighterClass);
-      continue;
-    }
-
-    const ownsIt = await verifyFighterOwnership(playerPubkey, fighterClass);
-    if (ownsIt) {
-      owned.push(fighterClass);
-    }
+  // If NFT system is not configured, return all classes as owned (graceful degradation)
+  if (!knightCollectionMint) {
+    return [
+      { fighterClass: 'knight' },
+      { fighterClass: 'archer' },
+      { fighterClass: 'cavalry' },
+      { fighterClass: 'mage' },
+    ];
   }
 
-  return owned;
+  try {
+    const umi = getUmi();
+    const assets = await fetchAllDigitalAssetByOwner(umi, umiPublicKey(playerPubkey));
+    const owned: OwnedFighter[] = [];
+    const seenClasses = new Set<FighterClass>();
+
+    for (const asset of assets) {
+      const collection = asset.metadata.collection;
+      if (!collection.__option || collection.__option === 'None') continue;
+      const val = collection as { __option: 'Some'; value: { verified: boolean; key: any } };
+      if (!val.value.verified) continue;
+
+      const collectionKey = val.value.key.toString();
+
+      for (const fighterClass of ['knight', 'archer', 'cavalry', 'mage'] as FighterClass[]) {
+        const expectedMint = getCollectionMint(fighterClass);
+        if (!expectedMint || collectionKey !== expectedMint) continue;
+
+        if (fighterClass === 'knight') {
+          // Parse color from URI: knight-{color}.json
+          const uri = asset.metadata.uri;
+          const colorMatch = uri.match(/knight-(red|blue|yellow|purple|green)/);
+          const color = colorMatch ? colorMatch[1] as FighterColor : undefined;
+          owned.push({ fighterClass: 'knight', color });
+        } else if (!seenClasses.has(fighterClass)) {
+          seenClasses.add(fighterClass);
+          owned.push({ fighterClass });
+        }
+        break;
+      }
+    }
+
+    return owned;
+  } catch (err: any) {
+    console.error(`getOwnedFighters failed for ${playerPubkey}:`, err.message);
+    // On error, return all classes (don't block gameplay)
+    return [
+      { fighterClass: 'knight' },
+      { fighterClass: 'archer' },
+      { fighterClass: 'cavalry' },
+      { fighterClass: 'mage' },
+    ];
+  }
 }

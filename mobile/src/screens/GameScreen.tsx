@@ -580,29 +580,50 @@ export default function GameScreen() {
           <Text style={styles.bannerText}>{errorBanner}</Text>
         </View>
       )}
-      {isEliminated && (
-        <View style={styles.eliminatedBanner}>
-          <Text style={styles.bannerText}>You have been eliminated</Text>
-        </View>
-      )}
-      <PlayerStatsBar player={myPlayer} currentDay={currentGame.currentDay} />
-      {deadlineRemaining && (
-        <Text style={[styles.deadlineText, deadlineUrgent && styles.deadlineUrgent]}>
-          {deadlineRemaining}
-        </Text>
+      {!isEliminated && (
+        <>
+          <PlayerStatsBar player={myPlayer} currentDay={currentGame.currentDay} />
+          {deadlineRemaining && (
+            <Text style={[styles.deadlineText, deadlineUrgent && styles.deadlineUrgent]}>
+              {deadlineRemaining}
+            </Text>
+          )}
+        </>
       )}
       <ScrollView contentContainerStyle={styles.scroll}>
-        <GameBoard
-          foggedTiles={foggedTiles}
-          boardSize={currentGame.boardSize}
-          selectedTile={isEliminated ? null : selectedTile}
-          lockedTile={submittedMove?.toTile ?? null}
-          validTargets={isEliminated || submittedMove ? new Set() : (isSelectingTarget ? validAttackTargets : (selectedTile !== null ? new Set() : validTargets))}
-          attackTargetTiles={attackTargetTilesSet}
-          myPlayerTile={myPlayer?.position ?? null}
-          onTilePress={isEliminated ? () => {} : handleTilePress}
-          maxHeight={windowHeight * 0.45}
-        />
+        {isEliminated && (
+          <View style={styles.eliminatedMapContainer}>
+            <GameBoard
+              foggedTiles={foggedTiles}
+              boardSize={currentGame.boardSize}
+              selectedTile={null}
+              lockedTile={null}
+              validTargets={new Set()}
+              myPlayerTile={null}
+              tombstoneTile={myPlayer.position}
+              onTilePress={() => {}}
+              maxHeight={windowHeight * 0.45}
+            />
+            <View style={styles.eliminatedMapOverlay} pointerEvents="none" />
+            <View style={styles.eliminatedBannerOverlay} pointerEvents="none">
+              <Text style={styles.eliminatedTitle}>You Have Been Eliminated</Text>
+              <Text style={styles.eliminatedSubtitle}>Lasted {currentGame.currentDay} days</Text>
+            </View>
+          </View>
+        )}
+        {!isEliminated && (
+          <GameBoard
+            foggedTiles={foggedTiles}
+            boardSize={currentGame.boardSize}
+            selectedTile={selectedTile}
+            lockedTile={submittedMove?.toTile ?? null}
+            validTargets={submittedMove ? new Set() : (isSelectingTarget ? validAttackTargets : (selectedTile !== null ? new Set() : validTargets))}
+            attackTargetTiles={attackTargetTilesSet}
+            myPlayerTile={myPlayer?.position ?? null}
+            onTilePress={handleTilePress}
+            maxHeight={windowHeight * 0.45}
+          />
+        )}
         {!isEliminated && selectedTile !== null && (
           <MoveSelector
             selectedAction={pendingAction}
@@ -712,10 +733,35 @@ const styles = StyleSheet.create({
     padding: 10,
     alignItems: 'center',
   },
-  eliminatedBanner: {
-    backgroundColor: '#555',
-    padding: 10,
+  eliminatedMapContainer: {
+    position: 'relative',
+  },
+  eliminatedMapOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  eliminatedBannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eliminatedTitle: {
+    color: COLORS.error,
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  eliminatedSubtitle: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 8,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   bannerRow: {
     flexDirection: 'row',
