@@ -115,9 +115,7 @@ export default function TileCell({ foggedTile, size, isSelected, isLocked, isVal
       {/* Tombstone marker */}
       {isTombstone && (
         <View style={styles.tombstoneOverlay} pointerEvents="none">
-          <View style={styles.tombstoneMarker}>
-            <Text style={styles.tombstoneText}>{'RIP'}</Text>
-          </View>
+          <Image source={UI_IMAGES.tombstone} style={styles.tombstoneImg} />
         </View>
       )}
     </TouchableOpacity>
@@ -203,19 +201,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tombstoneMarker: {
+  tombstoneImg: {
     width: 28,
     height: 28,
-    borderRadius: 4,
-    backgroundColor: 'rgba(30,30,30,0.85)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  tombstoneText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 9,
-    fontWeight: 'bold',
+    opacity: 0.85,
   },
 });

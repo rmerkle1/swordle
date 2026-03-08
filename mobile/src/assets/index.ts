@@ -68,6 +68,7 @@ export const UI_IMAGES = {
   stunned: require('./ui/stunned.png') as ImageSourcePropType,
   checkmark: require('./ui/checkmark.png') as ImageSourcePropType,
   silhouette: require('./ui/silhouette.png') as ImageSourcePropType,
+  tombstone: require('./ui/tombstone.png') as ImageSourcePropType,
   tabBattle: require('./ui/tab-battle.png') as ImageSourcePropType,
   tabExplore: require('./ui/tab-explore.png') as ImageSourcePropType,
   tabProfile: require('./ui/tab-profile.png') as ImageSourcePropType,
